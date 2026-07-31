@@ -18,14 +18,16 @@ class Lexer(
     private val source: String,
     private val file: String = "",
     private val reporter: DiagnosticReporter = DiagnosticReporter(),
+    startLine: Int = 1,
+    startCol: Int = 1,
 ) {
     private val tokens = mutableListOf<Token>()
     private var start = 0
     private var current = 0
-    private var line = 1
-    private var col = 1
-    private var startLine = 1
-    private var startCol = 1
+    private var line = startLine
+    private var col = startCol
+    private var startLine = startLine
+    private var startCol = startCol
 
     fun lex(): List<Token> {
         while (!isAtEnd()) {
@@ -145,9 +147,21 @@ class Lexer(
         }
         val text = source.substring(start, current)
         if (isFloat) {
-            addToken(TokenType.FLOAT_LITERAL, text.toDouble())
+            val value = try {
+                text.toDouble()
+            } catch (_: NumberFormatException) {
+                reportError("invalid floating-point literal '$text'")
+                Double.NaN
+            }
+            addToken(TokenType.FLOAT_LITERAL, value)
         } else {
-            addToken(TokenType.INTEGER_LITERAL, text.toLong())
+            val value = try {
+                text.toLong()
+            } catch (_: NumberFormatException) {
+                reportError("integer literal too large: '$text'")
+                0L
+            }
+            addToken(TokenType.INTEGER_LITERAL, value)
         }
     }
 
@@ -179,6 +193,8 @@ class Lexer(
                         peek() == '{' -> {
                             advance() // consume '{'
                             val exprStart = current
+                            val exprStartLine = line
+                            val exprStartCol = col
                             var depth = 1
                             while (!isAtEnd() && depth > 0) {
                                 when (advance()) {
@@ -199,14 +215,16 @@ class Lexer(
                                 return
                             }
                             val exprText = source.substring(exprStart, current - 1)
-                            parts += StringPart.Expr(exprText)
+                            parts += StringPart.Expr(exprText, exprStartLine, exprStartCol)
                         }
                         isIdentifierStart(peek()) -> {
                             val nameStart = current
+                            val nameStartLine = line
+                            val nameStartCol = col
                             advance()
                             while (isIdentifierPart(peek())) advance()
                             val name = source.substring(nameStart, current)
-                            parts += StringPart.Name(name)
+                            parts += StringPart.Name(name, SourceSpan(file, nameStartLine, nameStartCol, line, col))
                         }
                         else -> {
                             // '$' not followed by a template; keep it as literal text.
@@ -234,7 +252,9 @@ class Lexer(
         advance() // closing "
         flushText()
 
-        val value = if (parts.size == 1 && parts[0] is StringPart.Text) {
+        val value = if (parts.isEmpty()) {
+            StringValue.Plain("")
+        } else if (parts.size == 1 && parts[0] is StringPart.Text) {
             StringValue.Plain((parts[0] as StringPart.Text).text)
         } else {
             StringValue.Template(parts)
@@ -266,19 +286,24 @@ class Lexer(
 
     private fun blockComment() {
         var sawNewline = false
+        var depth = 1
         while (!isAtEnd()) {
             when (advance()) {
                 '\n' -> sawNewline = true
+                '/' -> if (match('*')) depth++
                 '*' -> if (match('/')) {
-                    if (sawNewline) {
-                        // Emit a single newline token so multi-line comments still
-                        // terminate statements that precede them.
-                        start = current
-                        startLine = line
-                        startCol = col
-                        addToken(TokenType.NEWLINE)
+                    depth--
+                    if (depth == 0) {
+                        if (sawNewline) {
+                            // Emit a single newline token so multi-line comments still
+                            // terminate statements that precede them.
+                            start = current
+                            startLine = line
+                            startCol = col
+                            addToken(TokenType.NEWLINE)
+                        }
+                        return
                     }
-                    return
                 }
             }
         }
@@ -339,6 +364,7 @@ sealed class StringValue {
 /** Part of a string template. */
 sealed class StringPart {
     data class Text(val text: String) : StringPart()
-    data class Name(val name: String) : StringPart()
-    data class Expr(val source: String) : StringPart()
+    data class Name(val name: String, val span: SourceSpan) : StringPart()
+    /** [startLine]/[startCol] locate the first char of [source] in the original file. */
+    data class Expr(val source: String, val startLine: Int, val startCol: Int) : StringPart()
 }

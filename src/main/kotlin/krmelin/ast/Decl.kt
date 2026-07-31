@@ -29,8 +29,12 @@ sealed class Decl(override val span: SourceSpan) : Node(span) {
         val isData: Boolean = false,
         val isObject: Boolean = false,
         val isInterface: Boolean = false,
+        val annotations: List<String> = emptyList(),
         override val span: SourceSpan,
-    ) : Decl(span)
+    ) : Decl(span) {
+        /** `@Parta` marks a test-suite group for PorubaUnit discovery. */
+        val isParta: Boolean get() = annotations.contains("Parta")
+    }
 
     data class FunDecl(
         val annotations: List<String>,
@@ -49,6 +53,7 @@ sealed class Decl(override val span: SourceSpan) : Node(span) {
         val name: String,
         val type: TypeNode?,
         val initializer: Expr?,
+        val annotations: List<String> = emptyList(),
         override val span: SourceSpan,
     ) : Decl(span)
 

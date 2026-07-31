@@ -112,4 +112,44 @@ class LexerTest {
         assertEquals(TokenType.AT_SICHTA, tokens[0].type)
         assertEquals(TokenType.AT_PARTA, tokens[1].type)
     }
+
+    @Test
+    fun `token spans track line and column across lines`() {
+        val (tokens, _) = lex("ab\ncd")
+        // "ab" at line 1, cols 1..3 (end exclusive)
+        assertEquals(1, tokens[0].span.startLine)
+        assertEquals(1, tokens[0].span.startCol)
+        assertEquals(1, tokens[0].span.endLine)
+        assertEquals(3, tokens[0].span.endCol)
+        // "cd" at line 2, cols 1..3
+        assertEquals(2, tokens[2].span.startLine)
+        assertEquals(1, tokens[2].span.startCol)
+        assertEquals(2, tokens[2].span.endLine)
+        assertEquals(3, tokens[2].span.endCol)
+    }
+
+    @Test
+    fun `oversized integer literal reports a diagnostic and recovers`() {
+        val (tokens, reporter) = lex("99999999999999999999999")
+        assertTrue(reporter.hasErrors, "expected an overflow diagnostic")
+        val intTok = tokens.first { it.type == TokenType.INTEGER_LITERAL }
+        assertEquals(0L, intTok.value)
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `nested block comments do not leak trailing tokens`() {
+        val (tokens, reporter) = lex("/* a /* b */ c */")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(listOf(TokenType.EOF), tokens.map { it.type })
+    }
+
+    @Test
+    fun `empty string lexes as a plain literal`() {
+        val (tokens, reporter) = lex("\"\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(TokenType.STRING_LITERAL, tokens[0].type)
+        val value = tokens[0].value as StringValue.Plain
+        assertEquals("", value.text)
+    }
 }

@@ -43,8 +43,8 @@ sealed class Stmt(override val span: SourceSpan) : Node(span) {
     ) : Stmt(span)
 
     data class ReturnStmt(val value: Expr?, override val span: SourceSpan) : Stmt(span)
-    class BreakStmt(override val span: SourceSpan) : Stmt(span)
-    class ContinueStmt(override val span: SourceSpan) : Stmt(span)
+    data class BreakStmt(override val span: SourceSpan) : Stmt(span)
+    data class ContinueStmt(override val span: SourceSpan) : Stmt(span)
 
     data class TryStmt(
         val block: Block,

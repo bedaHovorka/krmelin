@@ -15,7 +15,7 @@ sealed class Expr(override val span: SourceSpan) : Node(span) {
     data class StringLit(val value: String, override val span: SourceSpan) : Expr(span)
     data class StringTemplate(val parts: List<TemplatePart>, override val span: SourceSpan) : Expr(span)
     data class BoolLit(val value: Boolean, override val span: SourceSpan) : Expr(span)
-    class NullLit(override val span: SourceSpan) : Expr(span)
+    data class NullLit(override val span: SourceSpan) : Expr(span)
 
     data class NameExpr(val name: String, override val span: SourceSpan) : Expr(span)
     data class BinaryExpr(

@@ -197,13 +197,13 @@ Constructs kept with Kotlin names to limit scope: generics `<>`, lambdas `{ }`, 
 
 ```ebnf
 program        = { topLevelDecl } ;
-topLevelDecl   = packageDecl | importDecl | classDecl | funDecl ;
+topLevelDecl   = packageDecl | importDecl | classDecl | funDecl | propertyDecl ;
 packageDecl    = "sachta" qualifiedName NL ;
 importDecl     = "privezt" qualifiedName [ "." "*" ] NL ;
 
-classDecl      = [ "zapisnik" ] "tryda" IDENT [ paramList ] classBody
+classDecl      = { annotation } ( [ "zapisnik" ] "tryda" IDENT [ paramList ] classBody
                | "jedynak" IDENT classBody
-               | "predpis" IDENT classBody ;
+               | "predpis" IDENT classBody ) ;
 classBody      = "{" { member } "}" ;
 member         = funDecl | propertyDecl ;
 
@@ -212,7 +212,7 @@ funDecl        = { annotation } "robota" IDENT paramList
 annotation     = "@Sichta" | "@Parta" ;
 funBody        = block | "=" expr NL ;
 paramList      = "(" [ param { "," param } ] ")" ;
-param          = IDENT ":" type [ "=" expr ] ;
+param          = [ "toz" | "mozej" ] IDENT ":" type [ "=" expr ] ;
 
 propertyDecl   = ( "toz" | "mozej" ) IDENT [ ":" type ] [ "=" expr ] NL ;
 
@@ -245,7 +245,7 @@ logicalOr      = logicalAnd { "ci" logicalAnd } ;
 logicalAnd     = equality { "aj" equality } ;
 equality       = comparison { ("==" | "!=") comparison } ;
 comparison     = elvis { ("<" | ">" | "<=" | ">=") elvis } ;
-elvis          = additive { "?:" additive } ;
+elvis          = additive [ "?:" elvis ] ;
 additive       = multiplicative { ("+" | "-") multiplicative } ;
 multiplicative = unary { ("*" | "/" | "%") unary } ;
 unary          = ("!" | "-") unary | postfix ;

@@ -3,6 +3,7 @@ package krmelin.parser
 import krmelin.ast.Decl
 import krmelin.ast.Expr
 import krmelin.ast.Stmt
+import krmelin.ast.TemplatePart
 import krmelin.diag.DiagnosticReporter
 import krmelin.lexer.Lexer
 import org.junit.jupiter.api.Test
@@ -129,5 +130,63 @@ class ParserAstTest {
             (fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0]
         )
         assertIs<Expr.NullLit>(ret.value)
+    }
+
+    @Test
+    fun `wildcard import parses with the dot-star suffix`() {
+        val cu = parse("privezt krmelin.baza.*")
+        assertEquals(1, cu.imports.size)
+        val imp = cu.imports[0]
+        assertEquals(listOf("krmelin", "baza"), imp.name)
+        assertTrue(imp.wildcard)
+    }
+
+    @Test
+    fun `Parta annotation on a class is preserved`() {
+        val cu = parse("@Parta tryda Foo { }")
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertEquals(listOf("Parta"), cls.annotations)
+        assertTrue(cls.isParta)
+    }
+
+    @Test
+    fun `non-data class may have constructor parameters`() {
+        val cu = parse("tryda Foo(x: Cyslo) { }")
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertFalse(cls.isData)
+        assertEquals(1, cls.params.size)
+        assertEquals("x", cls.params[0].name)
+    }
+
+    @Test
+    fun `AST nodes carry accurate source spans`() {
+        val cu = parse("robota f() { davaj a }")
+        val fn = singleFun(cu)
+        val ret = assertIs<Stmt.ReturnStmt>(
+            (fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0]
+        )
+        val name = assertIs<Expr.NameExpr>(ret.value)
+        assertEquals("a", name.name)
+        // "a" sits at column 20 of the single line: robota f() { davaj a }
+        assertEquals(1, name.span.startLine)
+        assertEquals(20, name.span.startCol)
+    }
+
+    @Test
+    fun `string template interpolation names carry real spans`() {
+        val cu = parse("robota f() { zarvat(\"\$foo\") }")
+        val fn = singleFun(cu)
+        val exprStmt = assertIs<Stmt.ExprStmt>(
+            (fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0]
+        )
+        val call = assertIs<Expr.CallExpr>(exprStmt.expr)
+        val tmpl = assertIs<Expr.StringTemplate>(call.args[0])
+        // "$foo" has a single interpolation part (no leading text).
+        val interp = assertIs<TemplatePart.Interpolation>(tmpl.parts[0])
+        val name = assertIs<Expr.NameExpr>(interp.expr)
+        assertEquals("foo", name.name)
+        // "foo" starts at column 23: ...zarvat("$foo")  -> $ at 22, f at 23
+        assertEquals(1, name.span.startLine)
+        assertEquals(23, name.span.startCol)
     }
 }

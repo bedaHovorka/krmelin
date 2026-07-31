@@ -32,11 +32,22 @@ class Parser(
 
     fun parse(): Decl.CompilationUnit {
         skipNewlines()
-        val packageDecl = if (check(TokenType.SACHTA)) parsePackageDecl() else null
+        var packageDecl: Decl.PackageDecl? = null
+        if (check(TokenType.SACHTA)) {
+            try {
+                packageDecl = parsePackageDecl()
+            } catch (e: ParseError) {
+                synchronize()
+            }
+        }
         skipNewlines()
         val imports = mutableListOf<Decl.ImportDecl>()
         while (check(TokenType.PRIVEZT)) {
-            imports += parseImportDecl()
+            try {
+                imports += parseImportDecl()
+            } catch (e: ParseError) {
+                synchronize()
+            }
             skipNewlines()
         }
         val declarations = mutableListOf<Decl>()
@@ -97,7 +108,8 @@ class Parser(
     private fun parseImportDecl(): Decl.ImportDecl {
         val start = expect(TokenType.PRIVEZT, "expected 'privezt'")
         val name = parseQualifiedName()
-        val wildcard = match(TokenType.DOT, TokenType.STAR)
+        // parseQualifiedName leaves a trailing ".*" unconsumed; consume it here.
+        val wildcard = match(TokenType.DOT) && match(TokenType.STAR)
         expectNewlineOrSemi("import declaration must end with a newline")
         return Decl.ImportDecl(name, wildcard, span(start, previous()))
     }
@@ -105,7 +117,14 @@ class Parser(
     private fun parseQualifiedName(): List<String> {
         val parts = mutableListOf<String>()
         parts += expectIdentifier("expected an identifier")
-        while (match(TokenType.DOT)) {
+        while (check(TokenType.DOT)) {
+            val saved = currentPosition()
+            advance() // consume '.'
+            if (check(TokenType.STAR)) {
+                // Leave ".*" for the wildcard handler in the caller.
+                restorePosition(saved)
+                break
+            }
             parts += expectIdentifier("expected an identifier after '.'")
         }
         return parts
@@ -120,7 +139,7 @@ class Parser(
             expect(TokenType.TRYDA, "expected 'tryda', 'jedynak', or 'predpis'")
         }
         val name = expectIdentifier("expected a class name")
-        val params = if (isData && check(TokenType.LPAREN)) parseParamList() else emptyList()
+        val params = if (!isObject && !isInterface && check(TokenType.LPAREN)) parseParamList() else emptyList()
         val body = if (check(TokenType.LBRACE)) parseClassBody() else emptyList()
         return Decl.ClassDecl(
             name = name,
@@ -129,6 +148,7 @@ class Parser(
             isData = isData,
             isObject = isObject,
             isInterface = isInterface,
+            annotations = annotations,
             span = span(start, previous()),
         )
     }
@@ -155,7 +175,7 @@ class Parser(
             TokenType.ROBOTA -> parseFunDecl(annotations)
             TokenType.TOZ,
             TokenType.MOZEJ -> {
-                val prop = parsePropertyDecl()
+                val prop = parsePropertyDecl(annotations)
                 expectNewlineOrSemi("property declaration must end with a newline")
                 prop
             }
@@ -215,7 +235,7 @@ class Parser(
         return Decl.Param(name, type, default, isMutable, span(start, previous()))
     }
 
-    private fun parsePropertyDecl(): Decl.PropertyDecl {
+    private fun parsePropertyDecl(annotations: List<String> = emptyList()): Decl.PropertyDecl {
         val start = peek()
         val isMutable = when {
             match(TokenType.TOZ) -> false
@@ -225,7 +245,7 @@ class Parser(
         val name = expectIdentifier("expected a property name")
         val type = if (match(TokenType.COLON)) parseType() else null
         val initializer = if (match(TokenType.ASSIGN)) parseExpression() else null
-        return Decl.PropertyDecl(isMutable, name, type, initializer, span(start, previous()))
+        return Decl.PropertyDecl(isMutable, name, type, initializer, annotations, span(start, previous()))
     }
 
     private fun parseType(): TypeNode {
@@ -498,7 +518,7 @@ class Parser(
 
     internal fun expectNewlineOrSemi(message: String) {
         if (match(TokenType.NEWLINE)) return
-        if (check(TokenType.RBRACE, TokenType.EOF)) return
+        if (isAtEnd() || check(TokenType.RBRACE)) return
         throw error(peek(), message)
     }
 
@@ -562,9 +582,11 @@ class Parser(
         return parts.map { part ->
             when (part) {
                 is StringPart.Text -> TemplatePart.Text(part.text)
-                is StringPart.Name -> TemplatePart.Interpolation(Expr.NameExpr(part.name, SourceSpan.NONE))
+                is StringPart.Name -> TemplatePart.Interpolation(Expr.NameExpr(part.name, part.span))
                 is StringPart.Expr -> {
-                    val subLexer = krmelin.lexer.Lexer(part.source, file, reporter)
+                    // Seed the sub-lexer at the expression's original file position so
+                    // sub-expression spans are absolute, not relative to the substring.
+                    val subLexer = krmelin.lexer.Lexer(part.source, file, reporter, part.startLine, part.startCol)
                     val subTokens = subLexer.lex()
                     val subParser = Parser(subTokens, file, reporter)
                     TemplatePart.Interpolation(subParser.parseExpression())

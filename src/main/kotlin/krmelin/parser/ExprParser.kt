@@ -45,9 +45,13 @@ class ExprParser(private val parser: Parser) {
 
     fun parseExpression(precedence: Int = 0): Expr {
         parser.skipNewlines()
-        val token = parser.advance()
+        // Peek before advancing: if there is no prefix parser for the current token
+        // (e.g. a structural '}', ')' or EOF), throw without consuming it so panic-mode
+        // recovery can resync at the block boundary instead of swallowing it.
+        val token = parser.peek()
         val prefix = prefixParser(token)
             ?: throw parser.error(token, "expected expression")
+        parser.advance()
         var left = prefix(token)
 
         while (true) {
