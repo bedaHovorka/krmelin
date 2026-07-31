@@ -145,6 +145,24 @@ class LexerTest {
     }
 
     @Test
+    fun `invalid exponent backtracks without corrupting subsequent spans`() {
+        val (tokens, reporter) = lex("1e+")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val expected = listOf(TokenType.INTEGER_LITERAL, TokenType.IDENTIFIER, TokenType.PLUS, TokenType.EOF)
+        assertEquals(expected, tokens.map { it.type })
+        assertEquals(1L, tokens[0].value)
+        // "1" spans cols 1..2; the backtracked 'e' must not leak extra columns onto it.
+        assertEquals(1, tokens[0].span.startCol)
+        assertEquals(2, tokens[0].span.endCol)
+        // "e" (re-lexed as an identifier) spans cols 2..3.
+        assertEquals(2, tokens[1].span.startCol)
+        assertEquals(3, tokens[1].span.endCol)
+        // "+" spans cols 3..4.
+        assertEquals(3, tokens[2].span.startCol)
+        assertEquals(4, tokens[2].span.endCol)
+    }
+
+    @Test
     fun `empty string lexes as a plain literal`() {
         val (tokens, reporter) = lex("\"\"")
         assertFalse(reporter.hasErrors, reporter.render())

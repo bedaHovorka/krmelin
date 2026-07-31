@@ -150,6 +150,17 @@ class ParserAstTest {
     }
 
     @Test
+    fun `nullable generic type parses type arguments before the nullable marker`() {
+        val cu = parse("robota f(x: Zoznam<Cyslo>?) { }")
+        val fn = singleFun(cu)
+        val type = assertIs<krmelin.ast.TypeNode.NamedType>(fn.params[0].type)
+        assertEquals("Zoznam", type.name)
+        assertTrue(type.nullable)
+        assertEquals(1, type.typeArgs.size)
+        assertEquals("Cyslo", (type.typeArgs[0] as krmelin.ast.TypeNode.NamedType).name)
+    }
+
+    @Test
     fun `non-data class may have constructor parameters`() {
         val cu = parse("tryda Foo(x: Cyslo) { }")
         val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])

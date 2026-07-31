@@ -1,7 +1,6 @@
 package krmelin.lexer
 
 import krmelin.diag.DiagnosticReporter
-import krmelin.diag.Severity
 
 /**
  * Hand-rolled lexer for Krmelin.
@@ -135,15 +134,14 @@ class Lexer(
             while (peek().isDigit()) advance()
         }
         if (peek() == 'e' || peek() == 'E') {
-            val save = current
-            advance()
-            if (peek() == '+' || peek() == '-') advance()
-            if (peek().isDigit()) {
+            val signOffset = if (peekAt(1) == '+' || peekAt(1) == '-') 1 else 0
+            if (peekAt(1 + signOffset).isDigit()) {
                 isFloat = true
+                advance() // consume 'e'/'E'
+                if (peek() == '+' || peek() == '-') advance()
                 while (peek().isDigit()) advance()
-            } else {
-                current = save // backtrack; 'e' is not part of the number
             }
+            // else: 'e' is not part of the number; leave it unconsumed for the next token.
         }
         val text = source.substring(start, current)
         if (isFloat) {
@@ -347,6 +345,8 @@ class Lexer(
     private fun peek(): Char = if (isAtEnd()) ' ' else source[current]
 
     private fun peekNext(): Char = if (current + 1 >= source.length) ' ' else source[current + 1]
+
+    private fun peekAt(offset: Int): Char = if (current + offset >= source.length) '\u0000' else source[current + offset]
 
     private fun match(expected: Char): Boolean {
         if (isAtEnd() || source[current] != expected) return false

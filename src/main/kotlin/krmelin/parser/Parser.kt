@@ -133,8 +133,8 @@ class Parser(
     private fun parseClassDecl(annotations: List<String>): Decl.ClassDecl {
         val start = peek()
         val isData = match(TokenType.ZAPISNIK)
-        val isObject = match(TokenType.JEDYNAK)
-        val isInterface = match(TokenType.PREDPIS)
+        val isObject = if (!isData) match(TokenType.JEDYNAK) else false
+        val isInterface = if (!isData && !isObject) match(TokenType.PREDPIS) else false
         if (!isObject && !isInterface) {
             expect(TokenType.TRYDA, "expected 'tryda', 'jedynak', or 'predpis'")
         }
@@ -251,8 +251,8 @@ class Parser(
     private fun parseType(): TypeNode {
         val start = peek()
         val name = expectIdentifier("expected a type name")
-        val nullable = match(TokenType.QUESTION)
         val typeArgs = if (match(TokenType.LT)) parseTypeArguments() else emptyList()
+        val nullable = match(TokenType.QUESTION)
         return TypeNode.NamedType(name, nullable, typeArgs, span(start, previous()))
     }
 

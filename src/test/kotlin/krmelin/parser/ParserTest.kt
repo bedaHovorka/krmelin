@@ -72,4 +72,20 @@ class ParserTest {
         assertEquals("foo", (cu.declarations[0] as krmelin.ast.Decl.FunDecl).name)
         assertEquals("bar", (cu.declarations[1] as krmelin.ast.Decl.FunDecl).name)
     }
+
+    @Test
+    fun `zapisnik combined with jedynak reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("zapisnik jedynak Foo { }", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected 'zapisnik jedynak' to be rejected")
+    }
+
+    @Test
+    fun `zapisnik combined with predpis reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("zapisnik predpis Foo { }", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected 'zapisnik predpis' to be rejected")
+    }
 }
