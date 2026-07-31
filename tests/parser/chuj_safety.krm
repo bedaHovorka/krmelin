@@ -1,0 +1,3 @@
+robota delka(s: Dryst?) : Cyslo {
+    davaj s?.dylka ?: 0
+}
