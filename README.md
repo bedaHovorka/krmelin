@@ -61,6 +61,8 @@ See [docs/keywords.md](docs/keywords.md) for the full table.
 
 ## Building from source
 
+Requires JDK 21.
+
 ```sh
 ./gradlew build
 ```
@@ -73,8 +75,8 @@ The shadow jar lands at `build/libs/krmelin-<version>.jar`.
 # via the launcher script (after build):
 cli/krmelin --help
 
-# or directly:
-java -jar build/libs/krmelin-*.jar --help
+# or directly (the shadow jar, not the plain/-slim.jar one):
+java -jar build/libs/krmelin-<version>.jar --help
 ```
 
 ## Running tests

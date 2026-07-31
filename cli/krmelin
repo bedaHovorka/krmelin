@@ -2,5 +2,5 @@
 # Launcher script for Krmelin.
 # After `./gradlew shadowJar`, run: cli/krmelin [args]
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-JAR="$SCRIPT_DIR/../build/libs/krmelin-*.jar"
-exec java -jar $JAR "$@"
+JAR="$(find "$SCRIPT_DIR/../build/libs" -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')"
+exec java -jar "$JAR" "$@"
