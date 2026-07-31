@@ -55,9 +55,9 @@ class ExprParser(private val parser: Parser) {
         val prefix = prefixParser(token)
             ?: throw parser.error(
                 token,
-                "expected expression",
+                "tu ma byt vyraz",
                 code = DiagCode.EXPECTED_EXPRESSION,
-                note = "no expression can start here",
+                note = "zadny vyraz tu nemoze zacinat",
             )
         parser.advance()
         var left = prefix(token)
@@ -98,7 +98,7 @@ class ExprParser(private val parser: Parser) {
             parser.skipNewlines()
             val expr = parseExpression()
             parser.skipNewlines()
-            val close = parser.expect(TokenType.RPAREN, "expected ')' after expression")
+            val close = parser.expect(TokenType.RPAREN, "za vyrazem ma byt ')'")
             Expr.ParenExpr(expr, parser.span(t, close))
         }
         TokenType.LBRACE -> { t -> parseLambda(t) }
@@ -120,25 +120,25 @@ class ExprParser(private val parser: Parser) {
             TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE,
             TokenType.PLUS, TokenType.MINUS,
             TokenType.STAR, TokenType.SLASH, TokenType.PERCENT -> Expr.BinaryExpr(operator.type, left, right, span)
-            else -> throw parser.error(operator, "unexpected operator '${operator.text}'")
+            else -> throw parser.error(operator, "divny operator '${operator.text}'")
         }
     }
 
     private fun postfixParser(operator: Token, left: Expr): Expr = when (operator.type) {
         TokenType.DOT -> {
-            val name = parser.expectIdentifier("expected property or function name after '.'")
+            val name = parser.expectIdentifier("za '.' ma byt jmeno hodnoty abo roboty")
             Expr.MemberExpr(left, name, parser.span(left, parser.previous()))
         }
         TokenType.SAFE_DOT -> {
-            val name = parser.expectIdentifier("expected property or function name after '?.'")
+            val name = parser.expectIdentifier("za '?.' ma byt jmeno hodnoty abo roboty")
             Expr.SafeMemberExpr(left, name, parser.span(left, parser.previous()))
         }
         TokenType.LPAREN -> {
             val args = parseArguments()
-            val close = parser.expect(TokenType.RPAREN, "expected ')' after arguments")
+            val close = parser.expect(TokenType.RPAREN, "za argumentama ma byt ')'")
             Expr.CallExpr(left, args, parser.span(left, close))
         }
-        else -> throw parser.error(operator, "unexpected postfix operator '${operator.text}'")
+        else -> throw parser.error(operator, "divny postfixovy operator '${operator.text}'")
     }
 
     private fun parseArguments(): List<Expr> {
@@ -180,10 +180,10 @@ class ExprParser(private val parser: Parser) {
                         if (!parser.check(TokenType.IDENTIFIER)) {
                             throw parser.error(
                                 parser.peek(),
-                                "expected a lambda parameter name",
+                                "tu ma byt jmeno parametra lambdy",
                                 code = DiagCode.BAD_LAMBDA_PARAM,
-                                note = "a parameter name must be an identifier",
-                                fix = "name the parameter, e.g. '{ a, b -> ... }'",
+                                note = "jmeno parametra musi byt identifikator",
+                                fix = "pojmenuj tyn parametr, napr. '{ a, b -> ... }'",
                             )
                         }
                         continue
@@ -217,7 +217,7 @@ class ExprParser(private val parser: Parser) {
         val close = if (parser.check(TokenType.RBRACE)) {
             parser.advance()
         } else {
-            parser.error(parser.peek(), "expected '}' after lambda body")
+            parser.error(parser.peek(), "za telem lambdy ma byt '}'")
             parser.previous()
         }
         val block = Stmt.Block(bodyStmts, parser.span(start, close))

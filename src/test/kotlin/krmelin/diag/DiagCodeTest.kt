@@ -7,9 +7,7 @@ import kotlin.test.assertTrue
 
 class DiagCodeTest {
     private val codes: Map<String, String> =
-        DiagCode::class.java.fields
-            .filter { it.type == String::class.java }
-            .associate { it.name to it.get(null) as String }
+        DiagCode.entries.associate { it.name to it.code }
 
     @Test
     fun `every diagnostic code is unique`() {
@@ -22,8 +20,16 @@ class DiagCodeTest {
 
     @Test
     fun `every diagnostic code matches the documented shape`() {
-        val bad = codes.filterValues { !Regex("^E\\d{3}$").matches(it) }
-        assertTrue(bad.isEmpty(), "codes must look like E123, got: $bad")
+        val bad = codes.filterValues { !Regex("^HAV\\d{3}$").matches(it) }
+        assertTrue(bad.isEmpty(), "codes must look like HAV123, got: $bad")
+    }
+
+    @Test
+    fun `every severity label is a diacritics-free dialect word`() {
+        // Same convention as the keyword surface: ASCII only, so output is greppable
+        // and typable everywhere. The dialect lives in the phonetic spelling.
+        val bad = Severity.entries.filter { !Regex("^[a-z]+$").matches(it.label) }
+        assertTrue(bad.isEmpty(), "severity labels must be lowercase ASCII words, got: $bad")
     }
 
     @Test
@@ -31,9 +37,9 @@ class DiagCodeTest {
         // Plan.md §10: "Maintain an error-code index in docs/language-spec.md."
         val spec = File("docs/language-spec.md")
         assertTrue(spec.exists(), "expected the error-code index at ${spec.path}")
-        // Only index rows count: "| E102 | ...". The range table lists spans such as
-        // "E001–E099", which are not codes.
-        val documented = Regex("^\\| (E\\d{3}) \\|", RegexOption.MULTILINE)
+        // Only index rows count: "| HAV102 | ...". The range table lists spans such as
+        // "HAV001–HAV099", which are not codes.
+        val documented = Regex("^\\| (HAV\\d{3}) \\|", RegexOption.MULTILINE)
             .findAll(spec.readText())
             .map { it.groupValues[1] }
             .toSet()

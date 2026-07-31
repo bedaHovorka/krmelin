@@ -51,7 +51,7 @@ class DiagnosticReporter {
 
     fun report(
         severity: Severity,
-        code: String,
+        code: DiagCode,
         message: String,
         span: krmelin.lexer.SourceSpan,
         highlight: String? = null,
@@ -62,7 +62,7 @@ class DiagnosticReporter {
     }
 
     fun error(
-        code: String,
+        code: DiagCode,
         message: String,
         span: krmelin.lexer.SourceSpan,
         highlight: String? = null,
@@ -71,7 +71,7 @@ class DiagnosticReporter {
     ) = report(Severity.ERROR, code, message, span, highlight, fix, flourish)
 
     fun warning(
-        code: String,
+        code: DiagCode,
         message: String,
         span: krmelin.lexer.SourceSpan,
         highlight: String? = null,
@@ -97,7 +97,7 @@ class DiagnosticReporter {
      */
     fun render(): String = buildString {
         for (d in diagnostics) {
-            appendLine("${d.severity.name.lowercase()}: ${d.message} [${d.code}]")
+            appendLine("${d.severity.label}: ${d.message} [${d.code.code}]")
             appendLine("  --> ${d.span.file}:${d.span.startLine}:${d.span.startCol}")
             val sourceLine = sourceLineFor(d.span)
             if (sourceLine != null) {
@@ -114,7 +114,7 @@ class DiagnosticReporter {
             d.fix?.let { appendLine("   = pomoc: $it") }
             d.flourish?.let { appendLine("   = $it") }
         }
-        if (suppressed > 0) appendLine("... a $suppressed more (dalsi hlaseni potlacena)")
+        if (suppressed > 0) appendLine("... a jesce $suppressed dalsich (hlaseni potlacena, bo by to bylo dluhe)")
     }
 
     private fun sourceLineFor(span: krmelin.lexer.SourceSpan): String? {

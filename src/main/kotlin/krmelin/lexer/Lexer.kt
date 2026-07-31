@@ -91,8 +91,8 @@ class Lexer(
                 isIdentifierStart(c) -> identifier()
                 else -> {
                     reportError(
-                        "unexpected character '$c'",
-                        note = "this character has no meaning in Krmelin",
+                        "divny znak '$c'",
+                        note = "tyn znak v Krmelinu nic neznamena",
                     )
                     // Skip the bad character so lexing can continue.
                 }
@@ -126,10 +126,10 @@ class Lexer(
             addToken(type)
         } else {
             reportError(
-                "unknown annotation '$text'; only @Sichta and @Parta are supported",
+                "neznama anotace '$text'; su enem @Sichta a @Parta",
                 span = atSpan,
                 code = DiagCode.UNKNOWN_ANNOTATION,
-                fix = "use '@Sichta' to mark a test, or '@Parta' to mark a suite",
+                fix = "daj '@Sichta' na test, abo '@Parta' na partyju testu",
             )
         }
     }
@@ -159,7 +159,7 @@ class Lexer(
             val value = try {
                 text.toDouble()
             } catch (_: NumberFormatException) {
-                reportError("invalid floating-point literal '$text'", code = DiagCode.BAD_NUMBER)
+                reportError("vadne desetinne cyslo '$text'", code = DiagCode.BAD_NUMBER)
                 Double.NaN
             }
             addToken(TokenType.FLOAT_LITERAL, value)
@@ -167,8 +167,8 @@ class Lexer(
             val value = try {
                 text.toLong()
             } catch (_: NumberFormatException) {
-                reportError("integer literal too large: '$text'", code = DiagCode.BAD_NUMBER,
-                    fix = "Cyslo holds up to 9223372036854775807")
+                reportError("cyslo je moc velke: '$text'", code = DiagCode.BAD_NUMBER,
+                    fix = "do Cysla se vejde nejvyc 9223372036854775807")
                 0L
             }
             addToken(TokenType.INTEGER_LITERAL, value)
@@ -191,8 +191,8 @@ class Lexer(
         while (!isAtEnd() && peek() != '"') {
             when (val c = peek()) {
                 '\n' -> {
-                    reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
-                        fix = "close the text with a '\"'")
+                    reportError("nedokonceny text", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "zavri tyn text s '\"'")
                     flushText()
                     addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
                     return
@@ -248,8 +248,8 @@ class Lexer(
         }
 
         if (isAtEnd()) {
-            reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
-                        fix = "close the text with a '\"'")
+            reportError("nedokonceny text", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "zavri tyn text s '\"'")
             flushText()
             addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
             return
@@ -277,8 +277,8 @@ class Lexer(
      */
     private fun skipTemplateExprBody(nest: Int): Boolean {
         if (nest > MAX_TEMPLATE_NESTING) {
-            reportError("string template nesting too deep", code = DiagCode.TEMPLATE_TOO_DEEP,
-                fix = "pull the inner expressions out into named values")
+            reportError("sablony v texte su moc zanorene", code = DiagCode.TEMPLATE_TOO_DEEP,
+                fix = "vytahni vnitrni vyrazy do pojmenovanych hodnot")
             return false
         }
         var depth = 1
@@ -288,8 +288,8 @@ class Lexer(
                 '}' -> { advance(); depth-- }
                 // Do not consume the newline: it still has to terminate the statement.
                 '\n' -> {
-                    reportError("unterminated string template expression", code = DiagCode.UNTERMINATED_TEMPLATE,
-                            fix = "close the interpolation with a '}'")
+                    reportError("nedokonceny vyraz v texte", code = DiagCode.UNTERMINATED_TEMPLATE,
+                            fix = "zavri tu vlozku s '}'")
                     return false
                 }
                 '"' -> {
@@ -300,8 +300,8 @@ class Lexer(
             }
         }
         if (depth != 0) {
-            reportError("unterminated string template expression", code = DiagCode.UNTERMINATED_TEMPLATE,
-                            fix = "close the interpolation with a '}'")
+            reportError("nedokonceny vyraz v texte", code = DiagCode.UNTERMINATED_TEMPLATE,
+                            fix = "zavri tu vlozku s '}'")
             return false
         }
         return true
@@ -315,23 +315,23 @@ class Lexer(
      */
     private fun skipNestedString(nest: Int): Boolean {
         if (nest > MAX_TEMPLATE_NESTING) {
-            reportError("string template nesting too deep", code = DiagCode.TEMPLATE_TOO_DEEP,
-                fix = "pull the inner expressions out into named values")
+            reportError("sablony v texte su moc zanorene", code = DiagCode.TEMPLATE_TOO_DEEP,
+                fix = "vytahni vnitrni vyrazy do pojmenovanych hodnot")
             return false
         }
         while (!isAtEnd()) {
             when (peek()) {
                 '"' -> { advance(); return true }
                 '\n' -> {
-                    reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
-                        fix = "close the text with a '\"'")
+                    reportError("nedokonceny text", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "zavri tyn text s '\"'")
                     return false
                 }
                 '\\' -> {
                     advance()
                     if (isAtEnd() || peek() == '\n') {
-                        reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
-                        fix = "close the text with a '\"'")
+                        reportError("nedokonceny text", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "zavri tyn text s '\"'")
                         return false
                     }
                     advance()
@@ -346,8 +346,8 @@ class Lexer(
                 else -> advance()
             }
         }
-        reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
-                        fix = "close the text with a '\"'")
+        reportError("nedokonceny text", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "zavri tyn text s '\"'")
         return false
     }
 
@@ -360,8 +360,8 @@ class Lexer(
             '"' -> '"'
             '$' -> '$'
             else -> {
-                reportError("invalid escape sequence '\\$c'", code = DiagCode.INVALID_ESCAPE,
-                    fix = "valid escapes are \\n \\t \\r \\\\ \\\" and \\$")
+                reportError("vadna escape sekvence '\\$c'", code = DiagCode.INVALID_ESCAPE,
+                    fix = "platne escapy su \\n \\t \\r \\\\ \\\" a \\$")
                 c
             }
         }
@@ -397,8 +397,8 @@ class Lexer(
                 }
             }
         }
-        reportError("unterminated block comment", code = DiagCode.UNTERMINATED_COMMENT,
-            fix = "close the comment with '*/'")
+        reportError("nedokonceny komentar", code = DiagCode.UNTERMINATED_COMMENT,
+            fix = "zavri tyn komentar s '*/'")
     }
 
     // ── Token emission and helpers ─────────────────────────────────────────
@@ -415,7 +415,7 @@ class Lexer(
     private fun reportError(
         message: String,
         span: SourceSpan = currentSpan(),
-        code: String = DiagCode.UNEXPECTED_CHAR,
+        code: DiagCode = DiagCode.UNEXPECTED_CHAR,
         note: String? = null,
         fix: String? = null,
     ) {

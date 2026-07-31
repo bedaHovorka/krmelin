@@ -2,9 +2,24 @@ package krmelin.diag
 
 import krmelin.lexer.SourceSpan
 
-enum class Severity {
-    ERROR,
-    WARNING,
+/**
+ * Severity levels, each carrying the ostravština label used in rendered output.
+ *
+ * The labels are diacritics-stripped dialect words (same convention as `pomoc`):
+ * *hawaryja* — a breakdown/accident (Silesian, from German *Havarie*); *pozur* —
+ * "dej pozur", watch out (po naszymu *dować pozōr*); *oznam* — a notice;
+ * *dlubani* — tinkering/picking at something (Polish *dłubać*); *sled* — a track
+ * being followed.
+ *
+ * Only [ERROR] and [WARNING] are raised by the compiler today; INFO/DEBUG/TRACE
+ * are the verbosity levels for CLI output (M5).
+ */
+enum class Severity(val label: String) {
+    ERROR("hawaryja"),
+    WARNING("pozur"),
+    INFO("oznam"),
+    DEBUG("dlubani"),
+    TRACE("sled"),
 }
 
 /**
@@ -15,7 +30,7 @@ enum class Severity {
  */
 data class Diagnostic(
     val severity: Severity,
-    val code: String,
+    val code: DiagCode,
     val message: String,
     val span: SourceSpan,
     val highlight: String? = null,

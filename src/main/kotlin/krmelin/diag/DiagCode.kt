@@ -4,40 +4,41 @@ package krmelin.diag
  * Diagnostic code catalogue.
  *
  * Codes are stable identifiers users can search for, so an entry is never reused for a
- * different meaning — retire it instead. Ranges are reserved per compiler phase so later
- * milestones can add codes without renumbering:
+ * different meaning — retire it instead. The `HAV` prefix is short for *hawaryja*, the
+ * dialect word for a breakdown that also labels error output (see [Severity]). Ranges
+ * are reserved per compiler phase so later milestones can add codes without renumbering:
  *
  * | Range | Phase |
  * |---|---|
- * | E001–E099 | lexer |
- * | E100–E199 | parser |
- * | E200–E299 | resolver (M3) |
- * | E300–E399 | type checker (M3) |
+ * | HAV001–HAV099 | lexer |
+ * | HAV100–HAV199 | parser |
+ * | HAV200–HAV299 | resolver (M3) |
+ * | HAV300–HAV399 | type checker (M3) |
  *
  * Keep [docs/language-spec.md](../../../../../../docs/language-spec.md) in step with this
  * list; Plan.md §10 requires a published index.
  */
-object DiagCode {
+enum class DiagCode(val code: String) {
     // ── Lexer ────────────────────────────────────────────────────────────────
-    const val UNEXPECTED_CHAR = "E001"
-    const val UNTERMINATED_STRING = "E002"
-    const val UNTERMINATED_TEMPLATE = "E003"
-    const val TEMPLATE_TOO_DEEP = "E004"
-    const val INVALID_ESCAPE = "E005"
-    const val UNKNOWN_ANNOTATION = "E006"
-    const val BAD_NUMBER = "E007"
-    const val UNTERMINATED_COMMENT = "E008"
+    UNEXPECTED_CHAR("HAV001"),
+    UNTERMINATED_STRING("HAV002"),
+    UNTERMINATED_TEMPLATE("HAV003"),
+    TEMPLATE_TOO_DEEP("HAV004"),
+    INVALID_ESCAPE("HAV005"),
+    UNKNOWN_ANNOTATION("HAV006"),
+    BAD_NUMBER("HAV007"),
+    UNTERMINATED_COMMENT("HAV008"),
 
     // ── Parser ───────────────────────────────────────────────────────────────
     /** Generic "the grammar expected something else here". */
-    const val UNEXPECTED_TOKEN = "E100"
-    const val EXPECTED_DECLARATION = "E101"
-    const val EXPECTED_MEMBER = "E102"
-    const val UNEXPECTED_BRACE = "E103"
-    const val MISSING_BRACE = "E104"
-    const val MISSING_FUN_BODY = "E105"
-    const val PARAMS_NOT_ALLOWED = "E106"
-    const val BAD_LAMBDA_PARAM = "E107"
-    const val TEMPLATE_LEFTOVER = "E108"
-    const val EXPECTED_EXPRESSION = "E109"
+    UNEXPECTED_TOKEN("HAV100"),
+    EXPECTED_DECLARATION("HAV101"),
+    EXPECTED_MEMBER("HAV102"),
+    UNEXPECTED_BRACE("HAV103"),
+    MISSING_BRACE("HAV104"),
+    MISSING_FUN_BODY("HAV105"),
+    PARAMS_NOT_ALLOWED("HAV106"),
+    BAD_LAMBDA_PARAM("HAV107"),
+    TEMPLATE_LEFTOVER("HAV108"),
+    EXPECTED_EXPRESSION("HAV109"),
 }

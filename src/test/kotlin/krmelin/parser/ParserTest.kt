@@ -282,7 +282,7 @@ class ParserTest {
         val tokens = Lexer("robota f() {\n    davaj", "bad.krm", reporter).lex()
         val cu = Parser(tokens, "bad.krm", reporter).parse()
         assertTrue(
-            reporter.errors.none { it.message.contains("expected expression") },
+            reporter.errors.none { it.code == krmelin.diag.DiagCode.EXPECTED_EXPRESSION },
             "a bare 'davaj' has no value to parse, got: ${reporter.render()}",
         )
         val fn = cu.declarations.filterIsInstance<krmelin.ast.Decl.FunDecl>().single()

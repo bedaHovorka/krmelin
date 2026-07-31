@@ -59,10 +59,10 @@ class Parser(
             if (check(TokenType.RBRACE)) {
                 error(
                     peek(),
-                    "unexpected '}' — no block is open here",
+                    "'}' navyc — zadny blok tu neni otevreny",
                     code = DiagCode.UNEXPECTED_BRACE,
-                    note = "there is nothing to close",
-                    fix = "delete this '}', or add the '{' it was meant to close",
+                    note = "ni tu co zavirat",
+                    fix = "smaz to '}', abo dopis '{' co mu patri",
                 )
                 advance()
                 skipNewlines()
@@ -96,16 +96,16 @@ class Parser(
             TokenType.TOZ,
             TokenType.MOZEJ -> {
                 val prop = parsePropertyDecl(annotations)
-                expectNewlineOrSemi("property declaration must end with a newline")
+                expectNewlineOrSemi("deklarace hodnoty musi koncit novym radkem")
                 prop
             }
             else -> throw error(
                 peek(),
-                "expected a top-level declaration",
+                "tu ma byt deklarace",
                 code = DiagCode.EXPECTED_DECLARATION,
-                note = "this cannot start a declaration",
-                fix = "at file scope Krmelin expects 'sachta', 'privezt', 'tryda', " +
-                    "'jedynak', 'predpis', 'robota', 'toz' or 'mozej'",
+                note = "s tym zadna deklarace nezacina",
+                fix = "na urovni fajlu Krmelin ceka 'sachta', 'privezt', 'tryda', " +
+                    "'jedynak', 'predpis', 'robota', 'toz' abo 'mozej'",
             )
         }
     }
@@ -126,24 +126,24 @@ class Parser(
     }
 
     private fun parsePackageDecl(): Decl.PackageDecl {
-        val start = expect(TokenType.SACHTA, "expected 'sachta'")
+        val start = expect(TokenType.SACHTA, "tu ma byt 'sachta'")
         val name = parseQualifiedName()
-        expectNewlineOrSemi("package declaration must end with a newline")
+        expectNewlineOrSemi("deklarace 'sachta' musi koncit novym radkem")
         return Decl.PackageDecl(name, span(start, previous()))
     }
 
     private fun parseImportDecl(): Decl.ImportDecl {
-        val start = expect(TokenType.PRIVEZT, "expected 'privezt'")
+        val start = expect(TokenType.PRIVEZT, "tu ma byt 'privezt'")
         val name = parseQualifiedName()
         // parseQualifiedName leaves a trailing ".*" unconsumed; consume it here.
         val wildcard = match(TokenType.DOT) && match(TokenType.STAR)
-        expectNewlineOrSemi("import declaration must end with a newline")
+        expectNewlineOrSemi("deklarace 'privezt' musi koncit novym radkem")
         return Decl.ImportDecl(name, wildcard, span(start, previous()))
     }
 
     private fun parseQualifiedName(): List<String> {
         val parts = mutableListOf<String>()
-        parts += expectIdentifier("expected an identifier")
+        parts += expectIdentifier("tu ma byt jmeno")
         while (check(TokenType.DOT)) {
             val saved = currentPosition()
             advance() // consume '.'
@@ -152,7 +152,7 @@ class Parser(
                 restorePosition(saved)
                 break
             }
-            parts += expectIdentifier("expected an identifier after '.'")
+            parts += expectIdentifier("za '.' ma byt jmeno")
         }
         return parts
     }
@@ -163,9 +163,9 @@ class Parser(
         val isObject = if (!isData) match(TokenType.JEDYNAK) else false
         val isInterface = if (!isData && !isObject) match(TokenType.PREDPIS) else false
         if (!isObject && !isInterface) {
-            expect(TokenType.TRYDA, "expected 'tryda', 'jedynak', or 'predpis'")
+            expect(TokenType.TRYDA, "tu ma byt 'tryda', 'jedynak' abo 'predpis'")
         }
-        val name = expectIdentifier("expected a class name")
+        val name = expectIdentifier("tu ma byt jmeno trydy")
         val params = when {
             check(TokenType.LPAREN) && (isObject || isInterface) -> {
                 // Report, then consume and discard the list anyway. Leaving the '(' in
@@ -174,13 +174,13 @@ class Parser(
                 val what = if (isObject) "jedynak" else "predpis"
                 error(
                     peek(),
-                    "'$what' cannot have constructor parameters",
+                    "'$what' nemoze mit parametry konstruktora",
                     code = DiagCode.PARAMS_NOT_ALLOWED,
-                    note = "only 'tryda' and 'zapisnik tryda' take parameters",
+                    note = "parametry bere enem 'tryda' a 'zapisnik tryda'",
                     fix = if (isObject) {
-                        "a 'jedynak' is a single instance — declare the values as properties instead"
+                        "'jedynak' je enem jedna instance — napis ty hodnoty jako 'toz'/'mozej' cleny"
                     } else {
-                        "a 'predpis' has no constructor — declare the values as properties instead"
+                        "'predpis' nema konstruktor — napis ty hodnoty jako 'toz'/'mozej' cleny"
                     },
                 )
                 parseParamList()
@@ -205,7 +205,7 @@ class Parser(
     }
 
     private fun parseClassBody(allowAbstract: Boolean): List<Decl> {
-        expect(TokenType.LBRACE, "expected '{' before class body")
+        expect(TokenType.LBRACE, "pred telem trydy ma byt '{'")
         skipNewlines()
         val members = mutableListOf<Decl>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
@@ -222,10 +222,10 @@ class Parser(
         if (!match(TokenType.RBRACE)) {
             error(
                 peek(),
-                "expected '}' after class body",
+                "za telem trydy ma byt '}'",
                 code = DiagCode.MISSING_BRACE,
-                note = "the class body is still open here",
-                fix = "close the class with '}'",
+                note = "telo trydy je tu furt otevrene",
+                fix = "zavri tu trydu s '}'",
             )
         }
         return members
@@ -238,22 +238,22 @@ class Parser(
             TokenType.TOZ,
             TokenType.MOZEJ -> {
                 val prop = parsePropertyDecl(annotations)
-                expectNewlineOrSemi("property declaration must end with a newline")
+                expectNewlineOrSemi("deklarace hodnoty musi koncit novym radkem")
                 prop
             }
             else -> throw error(
                 peek(),
-                "expected a class member",
+                "tu ma byt clen trydy",
                 code = DiagCode.EXPECTED_MEMBER,
-                note = "a class body holds only functions and properties",
-                fix = "start the member with 'robota', 'toz' or 'mozej'",
+                note = "v tele trydy su enem roboty a hodnoty",
+                fix = "zacni s 'robota', 'toz' abo 'mozej'",
             )
         }
     }
 
     private fun parseFunDecl(annotations: List<String>, allowAbstract: Boolean = false): Decl.FunDecl {
-        val start = expect(TokenType.ROBOTA, "expected 'robota'")
-        val name = expectIdentifier("expected a function name")
+        val start = expect(TokenType.ROBOTA, "tu ma byt 'robota'")
+        val name = expectIdentifier("tu ma byt jmeno roboty")
         val params = parseParamList()
         val returnType = if (match(TokenType.COLON)) parseType() else null
         val throwsTypes = mutableListOf<TypeNode>()
@@ -275,7 +275,7 @@ class Parser(
     }
 
     private fun parseParamList(): List<Decl.Param> {
-        val start = expect(TokenType.LPAREN, "expected '('")
+        val start = expect(TokenType.LPAREN, "tu ma byt '('")
         skipNewlines()
         val params = mutableListOf<Decl.Param>()
         if (!check(TokenType.RPAREN)) {
@@ -285,7 +285,7 @@ class Parser(
                 skipNewlines()
             } while (match(TokenType.COMMA))
         }
-        expect(TokenType.RPAREN, "expected ')' after parameters")
+        expect(TokenType.RPAREN, "za parametrama ma byt ')'")
         return params
     }
 
@@ -296,8 +296,8 @@ class Parser(
             match(TokenType.MOZEJ) -> true
             else -> false
         }
-        val name = expectIdentifier("expected a parameter name")
-        expect(TokenType.COLON, "expected ':' after parameter name")
+        val name = expectIdentifier("tu ma byt jmeno parametra")
+        expect(TokenType.COLON, "za jmenem parametra ma byt ':'")
         val type = parseType()
         val default = if (match(TokenType.ASSIGN)) parseExpression() else null
         return Decl.Param(name, type, default, isMutable, span(start, previous()))
@@ -308,9 +308,9 @@ class Parser(
         val isMutable = when {
             match(TokenType.TOZ) -> false
             match(TokenType.MOZEJ) -> true
-            else -> throw error(peek(), "expected 'toz' or 'mozej'")
+            else -> throw error(peek(), "tu ma byt 'toz' abo 'mozej'")
         }
-        val name = expectIdentifier("expected a property name")
+        val name = expectIdentifier("tu ma byt jmeno hodnoty")
         val type = if (match(TokenType.COLON)) parseType() else null
         val initializer = if (match(TokenType.ASSIGN)) parseExpression() else null
         return Decl.PropertyDecl(isMutable, name, type, initializer, annotations, span(start, previous()))
@@ -318,7 +318,7 @@ class Parser(
 
     private fun parseType(): TypeNode {
         val start = peek()
-        val name = expectIdentifier("expected a type name")
+        val name = expectIdentifier("tu ma byt jmeno typu")
         val typeArgs = if (match(TokenType.LT)) parseTypeArguments() else emptyList()
         val nullable = match(TokenType.QUESTION)
         return TypeNode.NamedType(name, nullable, typeArgs, span(start, previous()))
@@ -332,7 +332,7 @@ class Parser(
             args += parseType()
             skipNewlines()
         } while (match(TokenType.COMMA))
-        expect(TokenType.GT, "expected '>' after type arguments")
+        expect(TokenType.GT, "za typovyma argumentama ma byt '>'")
         return args
     }
 
@@ -343,17 +343,17 @@ class Parser(
             if (allowAbstract) return null
             throw error(
                 peek(),
-                "expected a function body ('{' or '='); only 'predpis' may omit it",
+                "robota musi mit telo ('{' abo '='); bez tela smi byt enem v 'predpis'",
                 code = DiagCode.MISSING_FUN_BODY,
-                note = "no body follows this declaration",
-                fix = "write '{ ... }', or '= vyraz', or move the declaration into a 'predpis'",
+                note = "tu zadne telo neni",
+                fix = "napis '{ ... }', abo '= vyraz', abo presun deklaraci do 'predpis'",
             )
         }
         skipNewlines()
         return when {
             match(TokenType.ASSIGN) -> {
                 val expr = parseExpression()
-                expectNewlineOrSemi("function body expression must end with a newline")
+                expectNewlineOrSemi("vyrazove telo roboty musi koncit novym radkem")
                 FunBody.ExprBody(expr)
             }
             else -> FunBody.BlockBody(parseBlock())
@@ -363,7 +363,7 @@ class Parser(
     // ── Statements ─────────────────────────────────────────────────────────
 
     internal fun parseBlock(): Stmt.Block {
-        val start = expect(TokenType.LBRACE, "expected '{'")
+        val start = expect(TokenType.LBRACE, "tu ma byt '{'")
         skipNewlines()
         val statements = mutableListOf<Stmt>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
@@ -383,10 +383,10 @@ class Parser(
         if (!match(TokenType.RBRACE)) {
             error(
                 peek(),
-                "expected '}' after block",
+                "za blokem ma byt '}'",
                 code = DiagCode.MISSING_BRACE,
-                note = "the block is still open here",
-                fix = "close the block with '}'",
+                note = "blok je tu furt otevreny",
+                fix = "zavri tyn blok s '}'",
             )
         }
         return Stmt.Block(statements, span(start, previous()))
@@ -400,7 +400,7 @@ class Parser(
             TokenType.TOZ,
             TokenType.MOZEJ -> {
                 val decl = parsePropertyDecl()
-                expectNewlineOrSemi("property declaration must end with a newline")
+                expectNewlineOrSemi("deklarace hodnoty musi koncit novym radkem")
                 Stmt.PropertyStmt(decl, decl.span)
             }
             TokenType.KAJ -> parseIfStmt()
@@ -417,20 +417,20 @@ class Parser(
     }
 
     private fun parseIfStmt(): Stmt.IfStmt {
-        val start = expect(TokenType.KAJ, "expected 'kaj'")
-        expect(TokenType.LPAREN, "expected '(' after 'kaj'")
+        val start = expect(TokenType.KAJ, "tu ma byt 'kaj'")
+        expect(TokenType.LPAREN, "za 'kaj' ma byt '('")
         skipNewlines()
         val condition = parseExpression()
         skipNewlines()
-        expect(TokenType.RPAREN, "expected ')' after condition")
+        expect(TokenType.RPAREN, "za podminkou ma byt ')'")
         val thenBlock = parseBlock()
         val elseIfs = mutableListOf<Stmt.ElseIf>()
         while (matchAfterNewlines(TokenType.KAJTEZ)) {
-            expect(TokenType.LPAREN, "expected '(' after 'kajtez'")
+            expect(TokenType.LPAREN, "za 'kajtez' ma byt '('")
             skipNewlines()
             val elifCond = parseExpression()
             skipNewlines()
-            expect(TokenType.RPAREN, "expected ')' after 'kajtez' condition")
+            expect(TokenType.RPAREN, "za podminkou 'kajtez' ma byt ')'")
             val elifBlock = parseBlock()
             elseIfs += Stmt.ElseIf(elifCond, elifBlock)
         }
@@ -439,18 +439,18 @@ class Parser(
     }
 
     private fun parseWhenStmt(): Stmt.WhenStmt {
-        val start = expect(TokenType.PODLE_TEHO, "expected 'podle_teho'")
+        val start = expect(TokenType.PODLE_TEHO, "tu ma byt 'podle_teho'")
         val subject = if (check(TokenType.LBRACE)) {
             null
         } else {
-            expect(TokenType.LPAREN, "expected '(' after 'podle_teho'")
+            expect(TokenType.LPAREN, "za 'podle_teho' ma byt '('")
             skipNewlines()
             val s = if (check(TokenType.RPAREN)) null else parseExpression()
             skipNewlines()
-            expect(TokenType.RPAREN, "expected ')' after 'podle_teho' subject")
+            expect(TokenType.RPAREN, "za subjektem 'podle_teho' ma byt ')'")
             s
         }
-        expect(TokenType.LBRACE, "expected '{' after 'podle_teho'")
+        expect(TokenType.LBRACE, "za 'podle_teho' ma byt '{'")
         val branches = mutableListOf<Stmt.WhenBranch>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
             skipNewlines()
@@ -471,10 +471,10 @@ class Parser(
         if (!match(TokenType.RBRACE)) {
             error(
                 peek(),
-                "expected '}' after 'podle_teho' body",
+                "za telem 'podle_teho' ma byt '}'",
                 code = DiagCode.MISSING_BRACE,
-                note = "the podle_teho body is still open here",
-                fix = "close the podle_teho with '}'",
+                note = "telo 'podle_teho' je tu furt otevrene",
+                fix = "zavri to 'podle_teho' s '}'",
             )
         }
         return Stmt.WhenStmt(subject, branches, span(start, previous()))
@@ -496,7 +496,7 @@ class Parser(
             conditions = rest
             isElse = false
         }
-        expect(TokenType.ARROW, "expected '->' after when branch condition")
+        expect(TokenType.ARROW, "za podminkou vetve ma byt '->'")
         val body = parseWhenBody()
         if (body is WhenBody.ExprBody) {
             // Consume a terminating newline if present, but do not require it.
@@ -515,29 +515,29 @@ class Parser(
     }
 
     private fun parseForStmt(): Stmt.ForStmt {
-        val start = expect(TokenType.PROKAZDY, "expected 'prokazdy'")
-        expect(TokenType.LPAREN, "expected '(' after 'prokazdy'")
-        val name = expectIdentifier("expected a loop variable")
-        expect(TokenType.V, "expected 'v' after loop variable")
+        val start = expect(TokenType.PROKAZDY, "tu ma byt 'prokazdy'")
+        expect(TokenType.LPAREN, "za 'prokazdy' ma byt '('")
+        val name = expectIdentifier("tu ma byt promenna cyklu")
+        expect(TokenType.V, "za promennou cyklu ma byt 'v'")
         val iterable = parseExpression()
-        expect(TokenType.RPAREN, "expected ')' after 'prokazdy' iterable")
+        expect(TokenType.RPAREN, "za vyrazem 'prokazdy' ma byt ')'")
         val body = parseBlock()
         return Stmt.ForStmt(name, iterable, body, span(start, previous()))
     }
 
     private fun parseWhileStmt(): Stmt.WhileStmt {
-        val start = expect(TokenType.RUBAJ, "expected 'rubaj'")
-        expect(TokenType.LPAREN, "expected '(' after 'rubaj'")
+        val start = expect(TokenType.RUBAJ, "tu ma byt 'rubaj'")
+        expect(TokenType.LPAREN, "za 'rubaj' ma byt '('")
         skipNewlines()
         val condition = parseExpression()
         skipNewlines()
-        expect(TokenType.RPAREN, "expected ')' after 'rubaj' condition")
+        expect(TokenType.RPAREN, "za podminkou 'rubaj' ma byt ')'")
         val body = parseBlock()
         return Stmt.WhileStmt(condition, body, span(start, previous()))
     }
 
     private fun parseReturnStmt(): Stmt.ReturnStmt {
-        val start = expect(TokenType.DAVAJ, "expected 'davaj'")
+        val start = expect(TokenType.DAVAJ, "tu ma byt 'davaj'")
         // isAtEnd(), not check(EOF): check() short-circuits on isAtEnd(), so it can never
         // match the EOF token and a trailing 'davaj' would look like it had a value.
         val value = if (isAtEnd() || check(TokenType.NEWLINE, TokenType.RBRACE)) {
@@ -545,30 +545,30 @@ class Parser(
         } else {
             parseExpression()
         }
-        expectNewlineOrSemi("'davaj' must end with a newline")
+        expectNewlineOrSemi("'davaj' musi koncit novym radkem")
         return Stmt.ReturnStmt(value, span(start, previous()))
     }
 
     private fun parseBreakStmt(): Stmt.BreakStmt {
-        val start = expect(TokenType.ZDYBAT, "expected 'zdybat'")
-        expectNewlineOrSemi("'zdybat' must end with a newline")
+        val start = expect(TokenType.ZDYBAT, "tu ma byt 'zdybat'")
+        expectNewlineOrSemi("'zdybat' musi koncit novym radkem")
         return Stmt.BreakStmt(span(start, previous()))
     }
 
     private fun parseContinueStmt(): Stmt.ContinueStmt {
-        val start = expect(TokenType.DALEJ, "expected 'dalej'")
-        expectNewlineOrSemi("'dalej' must end with a newline")
+        val start = expect(TokenType.DALEJ, "tu ma byt 'dalej'")
+        expectNewlineOrSemi("'dalej' musi koncit novym radkem")
         return Stmt.ContinueStmt(span(start, previous()))
     }
 
     private fun parseTryStmt(): Stmt.TryStmt {
-        val start = expect(TokenType.PULTIK, "expected 'pultik'")
+        val start = expect(TokenType.PULTIK, "tu ma byt 'pultik'")
         val block = parseBlock()
         val catches = mutableListOf<Stmt.Catch>()
         while (matchAfterNewlines(TokenType.BITKA)) {
-            expect(TokenType.LPAREN, "expected '(' after 'bitka'")
+            expect(TokenType.LPAREN, "za 'bitka' ma byt '('")
             val param = parseParam()
-            expect(TokenType.RPAREN, "expected ')' after 'bitka' parameter")
+            expect(TokenType.RPAREN, "za parametrem 'bitka' ma byt ')'")
             val catchBlock = parseBlock()
             catches += Stmt.Catch(param, catchBlock)
         }
@@ -577,15 +577,15 @@ class Parser(
     }
 
     private fun parseThrowStmt(): Stmt.ThrowStmt {
-        val start = expect(TokenType.DOSTANES, "expected 'dostanes'")
+        val start = expect(TokenType.DOSTANES, "tu ma byt 'dostanes'")
         val expr = parseExpression()
-        expectNewlineOrSemi("'dostanes' must end with a newline")
+        expectNewlineOrSemi("'dostanes' musi koncit novym radkem")
         return Stmt.ThrowStmt(expr, span(start, previous()))
     }
 
     private fun parseExprStmt(): Stmt.ExprStmt {
         val expr = parseExpression()
-        expectNewlineOrSemi("expression statement must end with a newline")
+        expectNewlineOrSemi("vyraz musi koncit novym radkem")
         return Stmt.ExprStmt(expr, expr.span)
     }
 
@@ -742,7 +742,7 @@ class Parser(
     internal fun error(
         token: Token,
         message: String,
-        code: String = DiagCode.UNEXPECTED_TOKEN,
+        code: DiagCode = DiagCode.UNEXPECTED_TOKEN,
         note: String? = null,
         fix: String? = null,
         flourish: String? = null,
@@ -785,10 +785,10 @@ class Parser(
                     if (!subParser.isAtEnd()) {
                         subParser.error(
                             subParser.peek(),
-                            "unexpected token in string template",
+                            "v sablone textu je cosik navyc",
                             code = DiagCode.TEMPLATE_LEFTOVER,
-                            note = "this is left over after the interpolated expression",
-                            fix = "a '\${...}' holds exactly one expression; split it or remove the extra token",
+                            note = "to tu zbylo za vlozenym vyrazem",
+                            fix = "'\${...}' drzi presne jeden vyraz; rozdel to abo smaz co je navyc",
                         )
                     }
                     TemplatePart.Interpolation(expr)
