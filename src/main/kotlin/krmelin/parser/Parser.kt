@@ -8,6 +8,7 @@ import krmelin.ast.Stmt
 import krmelin.ast.TemplatePart
 import krmelin.ast.TypeNode
 import krmelin.ast.WhenBody
+import krmelin.diag.DiagCode
 import krmelin.diag.DiagnosticReporter
 import krmelin.lexer.SourceSpan
 import krmelin.lexer.StringPart
@@ -56,7 +57,13 @@ class Parser(
             // than a terminator. Report and step over it: stopping the loop instead would
             // silently drop every remaining declaration without a single diagnostic.
             if (check(TokenType.RBRACE)) {
-                error(peek(), "unexpected '}' — no block is open here")
+                error(
+                    peek(),
+                    "unexpected '}' — no block is open here",
+                    code = DiagCode.UNEXPECTED_BRACE,
+                    note = "there is nothing to close",
+                    fix = "delete this '}', or add the '{' it was meant to close",
+                )
                 advance()
                 skipNewlines()
                 continue
@@ -92,7 +99,14 @@ class Parser(
                 expectNewlineOrSemi("property declaration must end with a newline")
                 prop
             }
-            else -> throw error(peek(), "expected a top-level declaration")
+            else -> throw error(
+                peek(),
+                "expected a top-level declaration",
+                code = DiagCode.EXPECTED_DECLARATION,
+                note = "this cannot start a declaration",
+                fix = "at file scope Krmelin expects 'sachta', 'privezt', 'tryda', " +
+                    "'jedynak', 'predpis', 'robota', 'toz' or 'mozej'",
+            )
         }
     }
 
@@ -158,7 +172,17 @@ class Parser(
                 // place would make the '{' below invisible, so the whole body was parsed
                 // as top-level declarations and every member silently changed scope.
                 val what = if (isObject) "jedynak" else "predpis"
-                error(peek(), "'$what' cannot have constructor parameters")
+                error(
+                    peek(),
+                    "'$what' cannot have constructor parameters",
+                    code = DiagCode.PARAMS_NOT_ALLOWED,
+                    note = "only 'tryda' and 'zapisnik tryda' take parameters",
+                    fix = if (isObject) {
+                        "a 'jedynak' is a single instance — declare the values as properties instead"
+                    } else {
+                        "a 'predpis' has no constructor — declare the values as properties instead"
+                    },
+                )
                 parseParamList()
                 emptyList()
             }
@@ -181,7 +205,7 @@ class Parser(
     }
 
     private fun parseClassBody(allowAbstract: Boolean): List<Decl> {
-        val start = expect(TokenType.LBRACE, "expected '{' before class body")
+        expect(TokenType.LBRACE, "expected '{' before class body")
         skipNewlines()
         val members = mutableListOf<Decl>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
@@ -195,7 +219,15 @@ class Parser(
         }
         // Report but do not throw: throwing here would discard the ClassDecl along with
         // every member already parsed, and every declaration after it, for one typo.
-        if (!match(TokenType.RBRACE)) error(peek(), "expected '}' after class body")
+        if (!match(TokenType.RBRACE)) {
+            error(
+                peek(),
+                "expected '}' after class body",
+                code = DiagCode.MISSING_BRACE,
+                note = "the class body is still open here",
+                fix = "close the class with '}'",
+            )
+        }
         return members
     }
 
@@ -209,7 +241,13 @@ class Parser(
                 expectNewlineOrSemi("property declaration must end with a newline")
                 prop
             }
-            else -> throw error(peek(), "expected a class member")
+            else -> throw error(
+                peek(),
+                "expected a class member",
+                code = DiagCode.EXPECTED_MEMBER,
+                note = "a class body holds only functions and properties",
+                fix = "start the member with 'robota', 'toz' or 'mozej'",
+            )
         }
     }
 
@@ -303,7 +341,13 @@ class Parser(
         // marks the declaration as bodyless, so consuming it first would hide it.
         if (check(TokenType.NEWLINE, TokenType.RBRACE) || isAtEnd()) {
             if (allowAbstract) return null
-            throw error(peek(), "expected a function body ('{' or '='); only 'predpis' may omit it")
+            throw error(
+                peek(),
+                "expected a function body ('{' or '='); only 'predpis' may omit it",
+                code = DiagCode.MISSING_FUN_BODY,
+                note = "no body follows this declaration",
+                fix = "write '{ ... }', or '= vyraz', or move the declaration into a 'predpis'",
+            )
         }
         skipNewlines()
         return when {
@@ -336,7 +380,15 @@ class Parser(
         }
         // As in parseClassBody: keep the statements we have rather than losing the whole
         // enclosing function to a single missing brace.
-        if (!match(TokenType.RBRACE)) error(peek(), "expected '}' after block")
+        if (!match(TokenType.RBRACE)) {
+            error(
+                peek(),
+                "expected '}' after block",
+                code = DiagCode.MISSING_BRACE,
+                note = "the block is still open here",
+                fix = "close the block with '}'",
+            )
+        }
         return Stmt.Block(statements, span(start, previous()))
     }
 
@@ -414,7 +466,17 @@ class Parser(
                 synchronizeFrom(before)
             }
         }
-        expect(TokenType.RBRACE, "expected '}' after 'podle_teho' body")
+        // As in parseBlock/parseClassBody: report rather than throw, so the branches
+        // already parsed are not discarded along with the statement.
+        if (!match(TokenType.RBRACE)) {
+            error(
+                peek(),
+                "expected '}' after 'podle_teho' body",
+                code = DiagCode.MISSING_BRACE,
+                note = "the podle_teho body is still open here",
+                fix = "close the podle_teho with '}'",
+            )
+        }
         return Stmt.WhenStmt(subject, branches, span(start, previous()))
     }
 
@@ -476,7 +538,9 @@ class Parser(
 
     private fun parseReturnStmt(): Stmt.ReturnStmt {
         val start = expect(TokenType.DAVAJ, "expected 'davaj'")
-        val value = if (check(TokenType.NEWLINE, TokenType.RBRACE, TokenType.EOF)) {
+        // isAtEnd(), not check(EOF): check() short-circuits on isAtEnd(), so it can never
+        // match the EOF token and a trailing 'davaj' would look like it had a value.
+        val value = if (isAtEnd() || check(TokenType.NEWLINE, TokenType.RBRACE)) {
             null
         } else {
             parseExpression()
@@ -667,12 +731,29 @@ class Parser(
         }
     }
 
-    internal fun error(token: Token, message: String): ParseError {
+    /**
+     * Reports a syntax error and returns the [ParseError] to throw.
+     *
+     * [note] is the short remark printed after the caret and [fix] the `= pomoc:` line;
+     * both follow Plan.md §10, which asks every diagnostic to say what is wrong and how
+     * to repair it. The offending token is not repeated as a note — [render] already
+     * quotes the source line.
+     */
+    internal fun error(
+        token: Token,
+        message: String,
+        code: String = DiagCode.UNEXPECTED_TOKEN,
+        note: String? = null,
+        fix: String? = null,
+        flourish: String? = null,
+    ): ParseError {
         reporter.error(
-            code = "E002",
+            code = code,
             message = message,
             span = token.span,
-            highlight = token.text,
+            highlight = note,
+            fix = fix,
+            flourish = flourish,
         )
         return ParseError(token, message)
     }
@@ -702,7 +783,13 @@ class Parser(
                     // print something the source never said.
                     subParser.skipNewlines()
                     if (!subParser.isAtEnd()) {
-                        subParser.error(subParser.peek(), "unexpected token in string template")
+                        subParser.error(
+                            subParser.peek(),
+                            "unexpected token in string template",
+                            code = DiagCode.TEMPLATE_LEFTOVER,
+                            note = "this is left over after the interpolated expression",
+                            fix = "a '\${...}' holds exactly one expression; split it or remove the extra token",
+                        )
                     }
                     TemplatePart.Interpolation(expr)
                 }

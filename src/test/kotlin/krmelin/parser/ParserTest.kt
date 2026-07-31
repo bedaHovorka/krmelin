@@ -262,6 +262,36 @@ class ParserTest {
     }
 
     @Test
+    fun `a real parser diagnostic renders with the offending line and a caret`() {
+        val reporter = DiagnosticReporter()
+        val source = "tryda Foo {\n    123\n}\n"
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        val out = reporter.render()
+        assertTrue(out.contains("  --> bad.krm:2:5"), out)
+        assertTrue(out.contains(" 2 |     123"), out)
+        assertTrue(out.contains("   |     ^^^"), out)
+    }
+
+    @Test
+    fun `a bare davaj at end of input is a valueless return`() {
+        // check() short-circuits on isAtEnd(), so check(..., EOF) can never be true and
+        // the EOF arm was dead: 'davaj' as the last token fell through to parseExpression
+        // and reported a bogus "expected expression".
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("robota f() {\n    davaj", "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(
+            reporter.errors.none { it.message.contains("expected expression") },
+            "a bare 'davaj' has no value to parse, got: ${reporter.render()}",
+        )
+        val fn = cu.declarations.filterIsInstance<krmelin.ast.Decl.FunDecl>().single()
+        val block = (fn.body as krmelin.ast.FunBody.BlockBody).block
+        val ret = block.statements.filterIsInstance<krmelin.ast.Stmt.ReturnStmt>().single()
+        assertEquals(null, ret.value, "'davaj' with nothing after it returns no value")
+    }
+
+    @Test
     fun `a function with no body outside predpis reports a diagnostic`() {
         val reporter = DiagnosticReporter()
         val tokens = Lexer("tryda A {\n    robota m(): Cyslo\n}", "bad.krm", reporter).lex()

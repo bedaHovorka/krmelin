@@ -13,11 +13,6 @@ class LexerTest {
         return tokens to reporter
     }
 
-    private fun types(source: String): List<TokenType> {
-        val (tokens, _) = lex(source)
-        return tokens.map { it.type }
-    }
-
     @Test
     fun `lexes simple hello program`() {
         val (tokens, reporter) = lex("""

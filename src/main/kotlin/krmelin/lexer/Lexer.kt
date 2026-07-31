@@ -1,5 +1,6 @@
 package krmelin.lexer
 
+import krmelin.diag.DiagCode
 import krmelin.diag.DiagnosticReporter
 
 /**
@@ -28,6 +29,11 @@ class Lexer(
     private var startLine = startLine
     private var startCol = startCol
 
+    init {
+        // Let the reporter quote the offending line under a caret (Plan.md §10).
+        reporter.registerSource(file, source)
+    }
+
     fun lex(): List<Token> {
         while (!isAtEnd()) {
             start = current
@@ -43,7 +49,7 @@ class Lexer(
 
     private fun scanToken() {
         when (val c = advance()) {
-            ' ', '\t', '\r', '' -> Unit // skip horizontal whitespace
+            ' ', '\t', '\r', '\u000C' -> Unit // skip horizontal whitespace
             '\n' -> addToken(TokenType.NEWLINE)
 
             '(' -> addToken(TokenType.LPAREN)
@@ -84,7 +90,10 @@ class Lexer(
             else -> when {
                 isIdentifierStart(c) -> identifier()
                 else -> {
-                    reportError("unexpected character '$c'")
+                    reportError(
+                        "unexpected character '$c'",
+                        note = "this character has no meaning in Krmelin",
+                    )
                     // Skip the bad character so lexing can continue.
                 }
             }
@@ -119,6 +128,8 @@ class Lexer(
             reportError(
                 "unknown annotation '$text'; only @Sichta and @Parta are supported",
                 span = atSpan,
+                code = DiagCode.UNKNOWN_ANNOTATION,
+                fix = "use '@Sichta' to mark a test, or '@Parta' to mark a suite",
             )
         }
     }
@@ -148,7 +159,7 @@ class Lexer(
             val value = try {
                 text.toDouble()
             } catch (_: NumberFormatException) {
-                reportError("invalid floating-point literal '$text'")
+                reportError("invalid floating-point literal '$text'", code = DiagCode.BAD_NUMBER)
                 Double.NaN
             }
             addToken(TokenType.FLOAT_LITERAL, value)
@@ -156,7 +167,8 @@ class Lexer(
             val value = try {
                 text.toLong()
             } catch (_: NumberFormatException) {
-                reportError("integer literal too large: '$text'")
+                reportError("integer literal too large: '$text'", code = DiagCode.BAD_NUMBER,
+                    fix = "Cyslo holds up to 9223372036854775807")
                 0L
             }
             addToken(TokenType.INTEGER_LITERAL, value)
@@ -179,7 +191,8 @@ class Lexer(
         while (!isAtEnd() && peek() != '"') {
             when (val c = peek()) {
                 '\n' -> {
-                    reportError("unterminated string literal")
+                    reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "close the text with a '\"'")
                     flushText()
                     addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
                     return
@@ -235,7 +248,8 @@ class Lexer(
         }
 
         if (isAtEnd()) {
-            reportError("unterminated string literal")
+            reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "close the text with a '\"'")
             flushText()
             addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
             return
@@ -263,7 +277,8 @@ class Lexer(
      */
     private fun skipTemplateExprBody(nest: Int): Boolean {
         if (nest > MAX_TEMPLATE_NESTING) {
-            reportError("string template nesting too deep")
+            reportError("string template nesting too deep", code = DiagCode.TEMPLATE_TOO_DEEP,
+                fix = "pull the inner expressions out into named values")
             return false
         }
         var depth = 1
@@ -273,7 +288,8 @@ class Lexer(
                 '}' -> { advance(); depth-- }
                 // Do not consume the newline: it still has to terminate the statement.
                 '\n' -> {
-                    reportError("unterminated string template expression")
+                    reportError("unterminated string template expression", code = DiagCode.UNTERMINATED_TEMPLATE,
+                            fix = "close the interpolation with a '}'")
                     return false
                 }
                 '"' -> {
@@ -284,7 +300,8 @@ class Lexer(
             }
         }
         if (depth != 0) {
-            reportError("unterminated string template expression")
+            reportError("unterminated string template expression", code = DiagCode.UNTERMINATED_TEMPLATE,
+                            fix = "close the interpolation with a '}'")
             return false
         }
         return true
@@ -298,20 +315,23 @@ class Lexer(
      */
     private fun skipNestedString(nest: Int): Boolean {
         if (nest > MAX_TEMPLATE_NESTING) {
-            reportError("string template nesting too deep")
+            reportError("string template nesting too deep", code = DiagCode.TEMPLATE_TOO_DEEP,
+                fix = "pull the inner expressions out into named values")
             return false
         }
         while (!isAtEnd()) {
             when (peek()) {
                 '"' -> { advance(); return true }
                 '\n' -> {
-                    reportError("unterminated string literal")
+                    reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "close the text with a '\"'")
                     return false
                 }
                 '\\' -> {
                     advance()
                     if (isAtEnd() || peek() == '\n') {
-                        reportError("unterminated string literal")
+                        reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "close the text with a '\"'")
                         return false
                     }
                     advance()
@@ -326,7 +346,8 @@ class Lexer(
                 else -> advance()
             }
         }
-        reportError("unterminated string literal")
+        reportError("unterminated string literal", code = DiagCode.UNTERMINATED_STRING,
+                        fix = "close the text with a '\"'")
         return false
     }
 
@@ -339,7 +360,8 @@ class Lexer(
             '"' -> '"'
             '$' -> '$'
             else -> {
-                reportError("invalid escape sequence '\\$c'")
+                reportError("invalid escape sequence '\\$c'", code = DiagCode.INVALID_ESCAPE,
+                    fix = "valid escapes are \\n \\t \\r \\\\ \\\" and \\$")
                 c
             }
         }
@@ -375,7 +397,8 @@ class Lexer(
                 }
             }
         }
-        reportError("unterminated block comment")
+        reportError("unterminated block comment", code = DiagCode.UNTERMINATED_COMMENT,
+            fix = "close the comment with '*/'")
     }
 
     // ── Token emission and helpers ─────────────────────────────────────────
@@ -389,11 +412,19 @@ class Lexer(
         tokens += Token(type, text, currentSpan(), value)
     }
 
-    private fun reportError(message: String, span: SourceSpan = currentSpan()) {
+    private fun reportError(
+        message: String,
+        span: SourceSpan = currentSpan(),
+        code: String = DiagCode.UNEXPECTED_CHAR,
+        note: String? = null,
+        fix: String? = null,
+    ) {
         reporter.error(
-            code = "E001",
+            code = code,
             message = message,
             span = span,
+            highlight = note,
+            fix = fix,
         )
     }
 
@@ -412,9 +443,9 @@ class Lexer(
         return c
     }
 
-    private fun peek(): Char = if (isAtEnd()) ' ' else source[current]
+    private fun peek(): Char = if (isAtEnd()) '\u0000' else source[current]
 
-    private fun peekNext(): Char = if (current + 1 >= source.length) ' ' else source[current + 1]
+    private fun peekNext(): Char = if (current + 1 >= source.length) '\u0000' else source[current + 1]
 
     private fun peekAt(offset: Int): Char = if (current + offset >= source.length) '\u0000' else source[current + offset]
 

@@ -33,6 +33,51 @@ class DiagnosticReporterTest {
     }
 
     @Test
+    fun `render follows the Plan section 10 template`() {
+        val reporter = DiagnosticReporter()
+        reporter.registerSource("t.krm", "tryda Foo {\n    123\n}\n")
+        reporter.error(
+            code = "E101",
+            message = "expected a class member",
+            span = SourceSpan("t.krm", 2, 5, 2, 8),
+            highlight = "tady se ceka robota nebo toz",
+            fix = "zkus 'robota bar() { }'",
+            flourish = "trida bez roboty je enem barak bez chlopa",
+        )
+        assertEquals(
+            listOf(
+                "error: expected a class member [E101]",
+                "  --> t.krm:2:5",
+                "   |",
+                " 2 |     123",
+                "   |     ^^^ tady se ceka robota nebo toz",
+                "   = pomoc: zkus 'robota bar() { }'",
+                "   = trida bez roboty je enem barak bez chlopa",
+            ),
+            reporter.render().trimEnd().lines(),
+        )
+    }
+
+    @Test
+    fun `render degrades gracefully when the source is unknown`() {
+        val reporter = DiagnosticReporter()
+        reporter.error(code = "E101", message = "boom", span = SourceSpan("gone.krm", 9, 2, 9, 5))
+        val out = reporter.render().trimEnd().lines()
+        assertEquals("error: boom [E101]", out[0])
+        assertEquals("  --> gone.krm:9:2", out[1])
+        assertEquals(2, out.size, "no source means no snippet lines, got: $out")
+    }
+
+    @Test
+    fun `the caret spans multi-line constructs to the end of the first line`() {
+        val reporter = DiagnosticReporter()
+        reporter.registerSource("t.krm", "robota f() {\n}\n")
+        reporter.error(code = "E101", message = "boom", span = SourceSpan("t.krm", 1, 8, 2, 2))
+        val caret = reporter.render().lines()[4]
+        assertEquals("   |        ^^^^^", caret, "caret must stop at the end of line 1")
+    }
+
+    @Test
     fun `render includes the fix and flourish lines when present`() {
         val reporter = DiagnosticReporter()
         reporter.error(

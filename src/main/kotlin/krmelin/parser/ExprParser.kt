@@ -3,6 +3,7 @@ package krmelin.parser
 import krmelin.ast.Expr
 import krmelin.ast.LambdaBody
 import krmelin.ast.Stmt
+import krmelin.diag.DiagCode
 import krmelin.lexer.StringValue
 import krmelin.lexer.Token
 import krmelin.lexer.TokenType
@@ -52,7 +53,12 @@ class ExprParser(private val parser: Parser) {
         // recovery can resync at the block boundary instead of swallowing it.
         val token = parser.peek()
         val prefix = prefixParser(token)
-            ?: throw parser.error(token, "expected expression")
+            ?: throw parser.error(
+                token,
+                "expected expression",
+                code = DiagCode.EXPECTED_EXPRESSION,
+                note = "no expression can start here",
+            )
         parser.advance()
         var left = prefix(token)
 
@@ -172,7 +178,13 @@ class ExprParser(private val parser: Parser) {
                         // other reading to back off to. Anything but an identifier here
                         // is an error, not a reason to reinterpret the braces as a body.
                         if (!parser.check(TokenType.IDENTIFIER)) {
-                            throw parser.error(parser.peek(), "expected a lambda parameter name")
+                            throw parser.error(
+                                parser.peek(),
+                                "expected a lambda parameter name",
+                                code = DiagCode.BAD_LAMBDA_PARAM,
+                                note = "a parameter name must be an identifier",
+                                fix = "name the parameter, e.g. '{ a, b -> ... }'",
+                            )
                         }
                         continue
                     }
@@ -200,7 +212,14 @@ class ExprParser(private val parser: Parser) {
             }
             parser.skipNewlines()
         }
-        val close = parser.expect(TokenType.RBRACE, "expected '}' after lambda body")
+        // Report rather than throw, so an unclosed lambda still yields the statements it
+        // did parse instead of taking the enclosing declaration down with it.
+        val close = if (parser.check(TokenType.RBRACE)) {
+            parser.advance()
+        } else {
+            parser.error(parser.peek(), "expected '}' after lambda body")
+            parser.previous()
+        }
         val block = Stmt.Block(bodyStmts, parser.span(start, close))
         return Expr.LambdaExpr(params, LambdaBody.BlockBody(block), parser.span(start, close))
     }

@@ -65,6 +65,27 @@ class ParserRecoveryTest {
     }
 
     @Test
+    fun `an unclosed when body keeps the branches already parsed`() {
+        val (cu, reporter) = parse("robota f() {\n    podle_teho (x) {\n        boinak -> 1\n")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the missing '}'")
+        val block = bodyOf(cu.declarations.single())
+        val whenStmt = block.statements.filterIsInstance<Stmt.WhenStmt>().singleOrNull()
+        assertTrue(whenStmt != null, "the podle_teho statement must survive a missing brace")
+        assertEquals(1, whenStmt.branches.size, "the parsed branch must survive")
+    }
+
+    @Test
+    fun `an unclosed lambda body keeps the statements already parsed`() {
+        val (cu, reporter) = parse("robota f() {\n    toz g = { x ->\n        davaj x\n")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the missing '}'")
+        val block = bodyOf(cu.declarations.single())
+        assertTrue(
+            block.statements.isNotEmpty(),
+            "the property holding the lambda must survive a missing brace",
+        )
+    }
+
+    @Test
     fun `a bad when branch inside a method keeps the sibling method in the class`() {
         val (cu, reporter) = parse(
             "tryda C {\n    robota f() {\n        podle_teho {\n            -> 1\n        }\n    }\n\n" +
