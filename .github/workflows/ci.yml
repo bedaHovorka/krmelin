@@ -29,4 +29,6 @@ jobs:
         run: ./gradlew test
 
       - name: Verify --help lists subcommands
-        run: java -jar build/libs/krmelin-*.jar --help
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
+          java -jar "$jar_file" --help
