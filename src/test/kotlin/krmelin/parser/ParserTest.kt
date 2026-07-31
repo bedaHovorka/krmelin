@@ -92,6 +92,14 @@ class ParserTest {
     }
 
     @Test
+    fun `predpis combined with jedynak reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("predpis jedynak Foo { }", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected 'predpis jedynak' (interface+object without zapisnik) to be rejected")
+    }
+
+    @Test
     fun `malformed package declaration recovers and still parses following declarations`() {
         val source = """
             sachta 123
