@@ -3,7 +3,9 @@ package krmelin.parser
 import krmelin.diag.DiagnosticReporter
 import krmelin.lexer.Lexer
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertTimeoutPreemptively
 import java.io.File
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -87,5 +89,118 @@ class ParserTest {
         val tokens = Lexer("zapisnik predpis Foo { }", "bad.krm", reporter).lex()
         Parser(tokens, "bad.krm", reporter).parse()
         assertTrue(reporter.hasErrors, "expected 'zapisnik predpis' to be rejected")
+    }
+
+    @Test
+    fun `malformed package declaration recovers and still parses following declarations`() {
+        val source = """
+            sachta 123
+            robota foo() { }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the malformed package name")
+        assertEquals(1, cu.declarations.size, "recovery should still surface the following function")
+    }
+
+    @Test
+    fun `malformed import declaration recovers and still parses following declarations`() {
+        val source = """
+            privezt 123
+            robota foo() { }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the malformed import name")
+        assertEquals(1, cu.declarations.size, "recovery should still surface the following function")
+    }
+
+    @Test
+    fun `malformed class member recovers and still parses the sibling member`() {
+        val source = """
+            tryda Foo {
+                123
+                robota bar() { }
+            }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the stray integer literal member")
+        val cls = cu.declarations[0] as krmelin.ast.Decl.ClassDecl
+        assertEquals(1, cls.members.size, "recovery should still surface 'bar'")
+        assertEquals("bar", (cls.members[0] as krmelin.ast.Decl.FunDecl).name)
+    }
+
+    @Test
+    fun `missing identifier after dot reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("robota f() { davaj a. }", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the missing member name")
+    }
+
+    @Test
+    fun `missing newline after a statement reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("robota f() { davaj 1 davaj 2 }", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic when two statements share a line without a separator")
+    }
+
+    @Test
+    fun `recovery skips several tokens before reaching a synchronization point`() {
+        val source = """
+            robota foo() {
+                1 2 3 4
+            }
+            robota bar() { }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors)
+        assertEquals(2, cu.declarations.size, "recovery should still surface both functions")
+        assertEquals("bar", (cu.declarations[1] as krmelin.ast.Decl.FunDecl).name)
+    }
+
+    @Test
+    fun `stray boinak with no matching kaj recovers instead of hanging forever`() {
+        // Regression test: 'boinak'/'kajtez'/'bitka'/'fajront' have no parse dispatch
+        // of their own. If synchronize() ever returns without consuming one of these
+        // when it is itself the offending token, the caller retries the identical
+        // failing parse and the compiler hangs forever instead of reporting an error.
+        assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+            val source = """
+                robota f() {
+                    boinak
+                }
+                robota g() { }
+            """.trimIndent()
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "bad.krm", reporter).lex()
+            val cu = Parser(tokens, "bad.krm", reporter).parse()
+            assertTrue(reporter.hasErrors)
+            assertEquals(2, cu.declarations.size, "recovery should still surface both functions")
+        }
+    }
+
+    @Test
+    fun `stray bitka with no matching pultik recovers instead of hanging forever`() {
+        assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+            val source = """
+                robota f() {
+                    bitka
+                }
+                robota g() { }
+            """.trimIndent()
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "bad.krm", reporter).lex()
+            val cu = Parser(tokens, "bad.krm", reporter).parse()
+            assertTrue(reporter.hasErrors)
+            assertEquals(2, cu.declarations.size, "recovery should still surface both functions")
+        }
     }
 }

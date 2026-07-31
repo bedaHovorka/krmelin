@@ -201,9 +201,9 @@ topLevelDecl   = packageDecl | importDecl | classDecl | funDecl | propertyDecl ;
 packageDecl    = "sachta" qualifiedName NL ;
 importDecl     = "privezt" qualifiedName [ "." "*" ] NL ;
 
-classDecl      = { annotation } ( [ "zapisnik" ] "tryda" IDENT [ paramList ] classBody
-               | "jedynak" IDENT classBody
-               | "predpis" IDENT classBody ) ;
+classDecl      = { annotation } ( [ "zapisnik" ] "tryda" IDENT [ paramList ] [ classBody ]
+               | "jedynak" IDENT [ classBody ]
+               | "predpis" IDENT [ classBody ] ) ;
 classBody      = "{" { member } "}" ;
 member         = funDecl | propertyDecl ;
 
@@ -226,7 +226,7 @@ statement      = propertyDecl
 ifStmt         = "kaj" "(" expr ")" block
                  { "kajtez" "(" expr ")" block }
                  [ "boinak" block ] ;
-whenStmt       = "podle_teho" "(" [ expr ] ")" "{" { whenBranch } "}" ;
+whenStmt       = "podle_teho" [ "(" [ expr ] ")" ] "{" { whenBranch } "}" ;
 whenBranch     = ( exprList | "boinak" ) "->" ( expr | block ) ;
 forStmt        = "prokazdy" "(" IDENT "v" expr ")" block ;
 whileStmt      = "rubaj" "(" expr ")" block ;
@@ -237,7 +237,7 @@ tryStmt        = "pultik" block { "bitka" "(" param ")" block } [ "fajront" bloc
 throwStmt      = "dostanes" expr NL ;
 exprStmt       = expr NL ;
 
-type           = IDENT [ "?" ] [ "<" type { "," type } ">" ] ;
+type           = IDENT [ "<" type { "," type } ">" ] [ "?" ] ;
 
 expr           = assignment ;
 assignment     = logicalOr [ "=" assignment ] ;

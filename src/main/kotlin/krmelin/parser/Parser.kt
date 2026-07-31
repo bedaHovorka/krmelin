@@ -543,11 +543,19 @@ class Parser(
             return
         }
         if (peek().type == TokenType.RBRACE) return
+        // Only tokens that parseTopLevelDecl/parseMember/parseStatement can actually
+        // dispatch on belong here. KAJTEZ/BOINAK/BITKA/FAJRONT are continuation-only
+        // keywords with no such dispatch case: if one of them is the offending token
+        // itself (e.g. a stray 'boinak' with no matching 'kaj'), returning without
+        // consuming it would make the caller retry the exact same failing parse
+        // forever. The enclosing-construct case they were meant to guard against is
+        // already handled by the RBRACE check above, since kajtez/boinak/bitka/fajront
+        // always follow a block's closing '}' in this grammar.
         val syncTokens = setOf(
             TokenType.ROBOTA, TokenType.TRYDA, TokenType.ZAPISNIK,
-            TokenType.JEDYNAK, TokenType.PREDPIS, TokenType.KAJ, TokenType.KAJTEZ,
-            TokenType.BOINAK, TokenType.PODLE_TEHO, TokenType.PROKAZDY,
-            TokenType.RUBAJ, TokenType.PULTIK, TokenType.BITKA, TokenType.FAJRONT,
+            TokenType.JEDYNAK, TokenType.PREDPIS, TokenType.KAJ,
+            TokenType.PODLE_TEHO, TokenType.PROKAZDY,
+            TokenType.RUBAJ, TokenType.PULTIK,
             TokenType.TOZ, TokenType.MOZEJ, TokenType.DAVAJ, TokenType.ZDYBAT,
             TokenType.DALEJ, TokenType.DOSTANES,
         )
@@ -570,8 +578,6 @@ class Parser(
 
     internal fun span(start: Token, end: Token): SourceSpan =
         start.span.union(end.span)
-
-    internal fun span(token: Token): SourceSpan = token.span
 
     internal fun span(start: Node, end: Node): SourceSpan = start.span.union(end.span)
     internal fun span(start: Node, end: Token): SourceSpan = start.span.union(end.span)

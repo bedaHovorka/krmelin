@@ -170,4 +170,164 @@ class LexerTest {
         val value = tokens[0].value as StringValue.Plain
         assertEquals("", value.text)
     }
+
+    @Test
+    fun `every keyword spelling lexes to its mapped token type`() {
+        for ((spelling, type) in Keywords.MAP) {
+            val (tokens, reporter) = lex(spelling)
+            assertFalse(reporter.hasErrors, "lexing '$spelling': ${reporter.render()}")
+            assertEquals(type, tokens[0].type, "spelling '$spelling' should lex to $type")
+        }
+    }
+
+    @Test
+    fun `an uppercase keyword spelling lexes as an identifier`() {
+        val (tokens, reporter) = lex("Robota")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(TokenType.IDENTIFIER, tokens[0].type)
+    }
+
+    @Test
+    fun `string escape sequences decode to their control characters`() {
+        val (tokens, reporter) = lex("\"a\\nb\\tc\\rd\\\\e\\\"f\\\$g\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val value = tokens[0].value as StringValue.Plain
+        assertEquals("a\nb\tc\rd\\e\"f\$g", value.text)
+    }
+
+    @Test
+    fun `invalid escape sequence reports a diagnostic and keeps the literal character`() {
+        val (tokens, reporter) = lex("\"a\\qb\"")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the unknown escape")
+        val value = tokens[0].value as StringValue.Plain
+        assertEquals("aqb", value.text)
+    }
+
+    @Test
+    fun `unterminated string literal reports a diagnostic and recovers`() {
+        val (tokens, reporter) = lex("\"unterminated")
+        assertTrue(reporter.hasErrors, "expected an unterminated-string diagnostic")
+        assertEquals(TokenType.STRING_LITERAL, tokens[0].type)
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `unterminated string template expression reports a diagnostic and recovers`() {
+        val (tokens, reporter) = lex("\"\${1 + \"")
+        assertTrue(reporter.hasErrors, "expected an unterminated-template diagnostic")
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `unterminated block comment reports a diagnostic and recovers`() {
+        val (tokens, reporter) = lex("/* never closed")
+        assertTrue(reporter.hasErrors, "expected an unterminated-comment diagnostic")
+        assertEquals(listOf(TokenType.EOF), tokens.map { it.type })
+    }
+
+    @Test
+    fun `unknown annotation reports a diagnostic`() {
+        val (_, reporter) = lex("@Nope")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for an unsupported annotation")
+    }
+
+    @Test
+    fun `unexpected character reports a diagnostic and is skipped`() {
+        val (tokens, reporter) = lex("a # b")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the stray '#'")
+        assertEquals(listOf(TokenType.IDENTIFIER, TokenType.IDENTIFIER, TokenType.EOF), tokens.map { it.type })
+    }
+
+    @Test
+    fun `dollar not followed by identifier or brace is kept as literal text`() {
+        val (tokens, reporter) = lex("\"price: \$5\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        // The '$' flushes the preceding text into its own part, so this reconstructs
+        // as two adjacent Text parts rather than collapsing into a single Plain value.
+        val value = tokens[0].value as StringValue.Template
+        val reconstructed = value.parts.joinToString("") { (it as StringPart.Text).text }
+        assertEquals("price: \$5", reconstructed)
+    }
+
+    @Test
+    fun `token toString includes type text and span`() {
+        val (tokens, _) = lex("foo")
+        val text = tokens[0].toString()
+        assertTrue(text.contains("IDENTIFIER"))
+        assertTrue(text.contains("foo"))
+    }
+
+    @Test
+    fun `lexer may be constructed with default file and reporter`() {
+        val tokens = Lexer("foo").lex()
+        assertEquals(TokenType.IDENTIFIER, tokens[0].type)
+    }
+
+    @Test
+    fun `tab and carriage return are skipped as horizontal whitespace`() {
+        val (tokens, reporter) = lex("a\tb\rc")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(listOf(TokenType.IDENTIFIER, TokenType.IDENTIFIER, TokenType.IDENTIFIER, TokenType.EOF), tokens.map { it.type })
+    }
+
+    @Test
+    fun `semicolon lexes as a newline separator`() {
+        val (tokens, reporter) = lex("a;b")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(listOf(TokenType.IDENTIFIER, TokenType.NEWLINE, TokenType.IDENTIFIER, TokenType.EOF), tokens.map { it.type })
+    }
+
+    @Test
+    fun `exponent with an explicit sign is parsed`() {
+        val (tokens, reporter) = lex("1e+5 1e-5")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(100000.0, tokens[0].value)
+        assertEquals(1e-5, tokens[1].value)
+    }
+
+    @Test
+    fun `a trailing dot with no fractional digits is not part of the number`() {
+        val (tokens, reporter) = lex("5.")
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(listOf(TokenType.INTEGER_LITERAL, TokenType.DOT, TokenType.EOF), tokens.map { it.type })
+        assertEquals(5L, tokens[0].value)
+    }
+
+    @Test
+    fun `an embedded newline inside a string body reports unterminated`() {
+        val (tokens, reporter) = lex("\"abc\ndef\"")
+        assertTrue(reporter.hasErrors, "expected an unterminated-string diagnostic")
+        assertEquals(TokenType.STRING_LITERAL, tokens[0].type)
+    }
+
+    @Test
+    fun `an embedded newline inside a template expression reports unterminated`() {
+        val (tokens, reporter) = lex("\"\${1 +\n2}\"")
+        assertTrue(reporter.hasErrors, "expected an unterminated-template diagnostic")
+        assertEquals(TokenType.STRING_LITERAL, tokens[0].type)
+    }
+
+    @Test
+    fun `nested braces inside a template expression are balanced`() {
+        val (tokens, reporter) = lex("\"a\${b{c}d}e\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val value = tokens[0].value as StringValue.Template
+        val exprPart = value.parts.filterIsInstance<StringPart.Expr>().single()
+        assertEquals("b{c}d", exprPart.source)
+    }
+
+    @Test
+    fun `a block comment spanning multiple lines still separates statements`() {
+        val (tokens, reporter) = lex("""
+            a
+            /* line one
+               line two */
+            b
+        """.trimIndent())
+        assertFalse(reporter.hasErrors, reporter.render())
+        assertEquals(
+            listOf(TokenType.IDENTIFIER, TokenType.NEWLINE, TokenType.IDENTIFIER, TokenType.EOF),
+            tokens.map { it.type },
+        )
+    }
 }

@@ -170,6 +170,278 @@ class ParserAstTest {
     }
 
     @Test
+    fun `if elseif else chain AST captures every branch`() {
+        val cu = parse("""
+            robota f(x: Cyslo) {
+                kaj (x > 0) {
+                    davaj 1
+                } kajtez (x < 0) {
+                    davaj -1
+                } boinak {
+                    davaj 0
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val ifStmt = assertIs<Stmt.IfStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertEquals(1, ifStmt.elseIfs.size)
+        assertNotNull(ifStmt.elseBlock)
+    }
+
+    @Test
+    fun `when with a subject and multi-value branch`() {
+        val cu = parse("""
+            robota f(x: Cyslo) {
+                podle_teho (x) {
+                    1, 2 -> "small"
+                    boinak -> "big"
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val whenStmt = assertIs<Stmt.WhenStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertNotNull(whenStmt.subject)
+        assertEquals(2, whenStmt.branches[0].conditions.size)
+    }
+
+    @Test
+    fun `when branch may have a block body`() {
+        val cu = parse("""
+            robota f() {
+                podle_teho {
+                    fajne -> {
+                        davaj 1
+                    }
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val whenStmt = assertIs<Stmt.WhenStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertIs<krmelin.ast.WhenBody.BlockBody>(whenStmt.branches[0].body)
+    }
+
+    @Test
+    fun `for loop AST has variable name and iterable`() {
+        val cu = parse("""
+            robota f(xs: Zoznam) {
+                prokazdy (x v xs) {
+                    zarvat(x)
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val forStmt = assertIs<Stmt.ForStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertEquals("x", forStmt.name)
+        assertIs<Expr.NameExpr>(forStmt.iterable)
+    }
+
+    @Test
+    fun `while loop AST has condition and body`() {
+        val cu = parse("""
+            robota f() {
+                rubaj (fajne) {
+                    zdybat
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val whileStmt = assertIs<Stmt.WhileStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertIs<Expr.BoolLit>(whileStmt.condition)
+        assertIs<Stmt.BreakStmt>(whileStmt.body.statements[0])
+    }
+
+    @Test
+    fun `continue statement parses inside a loop`() {
+        val cu = parse("""
+            robota f() {
+                rubaj (fajne) {
+                    dalej
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val whileStmt = assertIs<Stmt.WhileStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertIs<Stmt.ContinueStmt>(whileStmt.body.statements[0])
+    }
+
+    @Test
+    fun `bare davaj with no value parses as a null-valued return`() {
+        val cu = parse("robota f() { davaj }")
+        val fn = singleFun(cu)
+        val ret = assertIs<Stmt.ReturnStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertNull(ret.value)
+    }
+
+    @Test
+    fun `try with only a catch and no finally`() {
+        val cu = parse("""
+            robota f() {
+                pultik {
+                    zarvat(1)
+                } bitka (e: Flakanec) {
+                    zarvat(2)
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val tryStmt = assertIs<Stmt.TryStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertEquals(1, tryStmt.catches.size)
+        assertNull(tryStmt.finallyBlock)
+    }
+
+    @Test
+    fun `try with only a finally and no catch`() {
+        val cu = parse("""
+            robota f() {
+                pultik {
+                    zarvat(1)
+                } fajront {
+                    zarvat(2)
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val tryStmt = assertIs<Stmt.TryStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertTrue(tryStmt.catches.isEmpty())
+        assertNotNull(tryStmt.finallyBlock)
+    }
+
+    @Test
+    fun `try with multiple catch clauses`() {
+        val cu = parse("""
+            robota f() {
+                pultik {
+                    zarvat(1)
+                } bitka (a: Flakanec) {
+                    zarvat(2)
+                } bitka (b: Flakanec) {
+                    zarvat(3)
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val tryStmt = assertIs<Stmt.TryStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertEquals(2, tryStmt.catches.size)
+        assertEquals("a", tryStmt.catches[0].param.name)
+        assertEquals("b", tryStmt.catches[1].param.name)
+    }
+
+    @Test
+    fun `parameter default value is parsed`() {
+        val cu = parse("robota f(x: Cyslo = 1) { }")
+        val fn = singleFun(cu)
+        assertNotNull(fn.params[0].defaultValue)
+        assertIs<Expr.IntLit>(fn.params[0].defaultValue)
+    }
+
+    @Test
+    fun `rozdava with multiple thrown types`() {
+        val cu = parse("robota f() rozdava A, B { }")
+        val fn = singleFun(cu)
+        assertEquals(listOf("A", "B"), fn.throwsTypes.map { (it as krmelin.ast.TypeNode.NamedType).name })
+    }
+
+    @Test
+    fun `top level property declaration is parsed`() {
+        val cu = parse("toz x: Cyslo = 1")
+        assertEquals(1, cu.declarations.size)
+        val prop = assertIs<Decl.PropertyDecl>(cu.declarations[0])
+        assertEquals("x", prop.name)
+        assertFalse(prop.isMutable)
+    }
+
+    @Test
+    fun `class body may declare a mutable property member`() {
+        val cu = parse("""
+            tryda Foo {
+                mozej x: Cyslo = 1
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertEquals(1, cls.members.size)
+        val prop = assertIs<Decl.PropertyDecl>(cls.members[0])
+        assertTrue(prop.isMutable)
+    }
+
+    @Test
+    fun `class body may declare multiple members`() {
+        val cu = parse("""
+            tryda Foo {
+                toz x: Cyslo = 1
+                robota bar() { }
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertEquals(2, cls.members.size)
+        assertIs<Decl.PropertyDecl>(cls.members[0])
+        assertIs<Decl.FunDecl>(cls.members[1])
+    }
+
+    @Test
+    fun `jedynak declares a singleton object`() {
+        val cu = parse("jedynak Foo { }")
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertTrue(cls.isObject)
+        assertFalse(cls.isData)
+        assertFalse(cls.isInterface)
+    }
+
+    @Test
+    fun `predpis declares an interface`() {
+        val cu = parse("predpis Foo { }")
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations[0])
+        assertTrue(cls.isInterface)
+        assertFalse(cls.isData)
+        assertFalse(cls.isObject)
+    }
+
+    @Test
+    fun `non wildcard import parses a plain qualified name`() {
+        val cu = parse("privezt krmelin.baza.Vec")
+        val imp = cu.imports[0]
+        assertEquals(listOf("krmelin", "baza", "Vec"), imp.name)
+        assertFalse(imp.wildcard)
+    }
+
+    @Test
+    fun `expression bodied function is parsed`() {
+        val cu = parse("robota f() = 1")
+        val fn = singleFun(cu)
+        val body = assertIs<krmelin.ast.FunBody.ExprBody>(fn.body)
+        assertIs<Expr.IntLit>(body.expr)
+    }
+
+    @Test
+    fun `top level property without a type annotation infers from the initializer`() {
+        val cu = parse("toz x = 1")
+        val prop = assertIs<Decl.PropertyDecl>(cu.declarations[0])
+        assertNull(prop.type)
+        assertNotNull(prop.initializer)
+    }
+
+    @Test
+    fun `parser tolerates an empty token list`() {
+        val reporter = DiagnosticReporter()
+        val cu = Parser(emptyList(), "empty.krm", reporter).parse()
+        assertFalse(reporter.hasErrors)
+        assertTrue(cu.declarations.isEmpty())
+    }
+
+    @Test
+    fun `when subject may use redundant empty parens`() {
+        val cu = parse("""
+            robota f() {
+                podle_teho () {
+                    boinak -> 1
+                }
+            }
+        """.trimIndent())
+        val fn = singleFun(cu)
+        val whenStmt = assertIs<Stmt.WhenStmt>((fn.body as krmelin.ast.FunBody.BlockBody).block.statements[0])
+        assertNull(whenStmt.subject)
+    }
+
+    @Test
     fun `AST nodes carry accurate source spans`() {
         val cu = parse("robota f() { davaj a }")
         val fn = singleFun(cu)

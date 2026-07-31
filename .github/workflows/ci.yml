@@ -28,6 +28,9 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
+      - name: Verify lexer/parser test coverage (>= 90%)
+        run: ./gradlew jacocoTestReport jacocoTestCoverageVerification
+
       - name: Verify --help lists subcommands
         run: |
           jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')

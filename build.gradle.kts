@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "2.1.21"
     application
     id("com.gradleup.shadow") version "8.3.6"
+    jacoco
 }
 
 group = "krmelin"
@@ -24,6 +25,28 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    violationRules {
+        rule {
+            element = "PACKAGE"
+            includes = listOf("krmelin.lexer", "krmelin.parser")
+            limit {
+                minimum = "0.90".toBigDecimal()
+            }
+        }
+    }
 }
 
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {

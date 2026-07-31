@@ -10,13 +10,15 @@ import krmelin.lexer.TokenType
 /**
  * Pratt parser for Krmelin expressions.
  *
- * Operator precedence (lowest to highest):
+ * Operator precedence (lowest to highest), matching Plan.md §4.3's EBNF
+ * (`comparison = elvis {...}`, `elvis = additive [...]`) — elvis binds
+ * tighter than comparison/equality/logical operators but looser than additive:
  * 1. assignment (=)        right-associative
- * 2. elvis (?:)            right-associative
- * 3. logical or (ci)       left-associative
- * 4. logical and (aj)      left-associative
- * 5. equality (==, !=)     left-associative
- * 6. comparison (<, >, <=, >=) left-associative
+ * 2. logical or (ci)       left-associative
+ * 3. logical and (aj)      left-associative
+ * 4. equality (==, !=)     left-associative
+ * 5. comparison (<, >, <=, >=) left-associative
+ * 6. elvis (?:)            right-associative
  * 7. additive (+, -)     left-associative
  * 8. multiplicative (*, /, %) left-associative
  * 9. unary (!, -)          right-associative
@@ -32,11 +34,11 @@ class ExprParser(private val parser: Parser) {
 
     private fun infixInfo(type: TokenType): InfixInfo? = when (type) {
         TokenType.ASSIGN -> InfixInfo(1, rightAssoc = true)
-        TokenType.ELVIS -> InfixInfo(2, rightAssoc = true)
-        TokenType.CI -> InfixInfo(3, rightAssoc = false)
-        TokenType.AJ -> InfixInfo(4, rightAssoc = false)
-        TokenType.EQ, TokenType.NEQ -> InfixInfo(5, rightAssoc = false)
-        TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE -> InfixInfo(6, rightAssoc = false)
+        TokenType.CI -> InfixInfo(2, rightAssoc = false)
+        TokenType.AJ -> InfixInfo(3, rightAssoc = false)
+        TokenType.EQ, TokenType.NEQ -> InfixInfo(4, rightAssoc = false)
+        TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE -> InfixInfo(5, rightAssoc = false)
+        TokenType.ELVIS -> InfixInfo(6, rightAssoc = true)
         TokenType.PLUS, TokenType.MINUS -> InfixInfo(7, rightAssoc = false)
         TokenType.STAR, TokenType.SLASH, TokenType.PERCENT -> InfixInfo(8, rightAssoc = false)
         TokenType.LPAREN, TokenType.DOT, TokenType.SAFE_DOT -> InfixInfo(10, rightAssoc = false, postfix = true)
