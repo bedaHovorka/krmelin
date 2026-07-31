@@ -211,4 +211,210 @@ class ParserTest {
             assertEquals(2, cu.declarations.size, "recovery should still surface both functions")
         }
     }
+
+    // Recovery must make progress on *every* token that synchronize() stops at but the
+    // enclosing dispatcher cannot parse. That is the whole set difference between
+    // syncTokens and each dispatcher's cases, not just the continuation keywords above:
+    // a nested 'robota' in a block, a nested 'tryda' in a class body, and any statement
+    // keyword at file scope each used to spin forever, appending a diagnostic per pass
+    // until the JVM died with OutOfMemoryError.
+
+    @Test
+    fun `nested robota inside a block recovers instead of hanging forever`() {
+        assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+            val source = """
+                robota main() {
+                    robota nested() {
+                    }
+                }
+                robota g() { }
+            """.trimIndent()
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "bad.krm", reporter).lex()
+            val cu = Parser(tokens, "bad.krm", reporter).parse()
+            assertTrue(reporter.hasErrors, "expected a diagnostic for the nested function")
+            assertTrue(
+                cu.declarations.any { it is krmelin.ast.Decl.FunDecl && it.name == "g" },
+                "recovery should still surface the following function",
+            )
+        }
+    }
+
+    @Test
+    fun `nested tryda inside a class body recovers instead of hanging forever`() {
+        assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+            val source = """
+                tryda Outer {
+                    tryda Inner {
+                    }
+                }
+                robota g() { }
+            """.trimIndent()
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "bad.krm", reporter).lex()
+            val cu = Parser(tokens, "bad.krm", reporter).parse()
+            assertTrue(reporter.hasErrors, "expected a diagnostic for the nested class")
+            assertTrue(
+                cu.declarations.any { it is krmelin.ast.Decl.FunDecl && it.name == "g" },
+                "recovery should still surface the following function",
+            )
+        }
+    }
+
+    @Test
+    fun `a function with no body outside predpis reports a diagnostic`() {
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("tryda A {\n    robota m(): Cyslo\n}", "bad.krm", reporter).lex()
+        Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "only 'predpis' may declare a function without a body")
+    }
+
+    @Test
+    fun `constructor parameters on a jedynak are rejected without losing the body`() {
+        val reporter = DiagnosticReporter()
+        val source = "jedynak Foo(x: Cyslo) {\n    robota bar() { }\n}"
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "an object cannot take constructor parameters")
+        val cls = cu.declarations.filterIsInstance<krmelin.ast.Decl.ClassDecl>().single()
+        assertEquals(1, cls.members.size, "the body must still be parsed as the class body")
+        assertEquals("bar", (cls.members[0] as krmelin.ast.Decl.FunDecl).name)
+    }
+
+    @Test
+    fun `constructor parameters on a predpis are rejected without losing the body`() {
+        val reporter = DiagnosticReporter()
+        val source = "predpis Foo(x: Cyslo) {\n    robota bar() { }\n}"
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "an interface cannot take constructor parameters")
+        val cls = cu.declarations.filterIsInstance<krmelin.ast.Decl.ClassDecl>().single()
+        assertEquals(1, cls.members.size, "the body must still be parsed as the class body")
+    }
+
+    @Test
+    fun `a multi-line block comment terminates a statement exactly like a plain newline`() {
+        // Characterization, not a bug: statement termination is newline-significant
+        // (Plan.md §4.3), and a comment that spans lines contains a line break. Both
+        // forms below stop the property at '1' and then reject a top-level '+'. The
+        // comment must not make the two behave differently.
+        fun parseIt(source: String): Pair<Int, Int> {
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "t.krm", reporter).lex()
+            val cu = Parser(tokens, "t.krm", reporter).parse()
+            return cu.declarations.size to reporter.errors.size
+        }
+        assertEquals(
+            parseIt("toz x = 1\n+ 2"),
+            parseIt("toz x = 1 /* a\nb */ + 2"),
+            "a multi-line comment must terminate the statement just like the newline it contains",
+        )
+    }
+
+    @Test
+    fun `a malformed statement inside a lambda body does not swallow later declarations`() {
+        val source = """
+            tryda A {
+                robota m() {
+                    toz f = { x ->
+                        toz y =
+                        davaj x
+                    }
+                }
+                robota n() { davaj 1 }
+            }
+            robota top() { davaj 2 }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the incomplete property")
+        assertTrue(
+            cu.declarations.any { it is krmelin.ast.Decl.FunDecl && it.name == "top" },
+            "one bad line in a lambda must not delete every later declaration",
+        )
+        val cls = cu.declarations.filterIsInstance<krmelin.ast.Decl.ClassDecl>().single()
+        assertTrue(
+            cls.members.any { it is krmelin.ast.Decl.FunDecl && it.name == "n" },
+            "member 'n' must stay inside the class rather than being hoisted out",
+        )
+    }
+
+    @Test
+    fun `a malformed when branch is contained and the surrounding when survives`() {
+        val source = """
+            robota f() {
+                podle_teho (x) {
+                    -> 1
+                    boinak -> 2
+                }
+            }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the branch with no condition")
+        val fn = cu.declarations[0] as krmelin.ast.Decl.FunDecl
+        val block = (fn.body as krmelin.ast.FunBody.BlockBody).block
+        val whenStmt = block.statements.filterIsInstance<krmelin.ast.Stmt.WhenStmt>().singleOrNull()
+        assertTrue(whenStmt != null, "the podle_teho statement must survive a bad branch")
+        assertTrue(whenStmt.branches.any { it.isElse }, "the well-formed 'boinak' branch must survive")
+    }
+
+    @Test
+    fun `a missing closing brace keeps the class and its parsed members`() {
+        val source = """
+            tryda A {
+                robota m() {
+                }
+            robota g() {
+            }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the missing '}'")
+        assertTrue(cu.declarations.isNotEmpty(), "one missing brace must not discard the whole file")
+        val cls = cu.declarations[0] as krmelin.ast.Decl.ClassDecl
+        assertEquals("A", cls.name)
+        assertTrue(
+            cls.members.any { it is krmelin.ast.Decl.FunDecl && it.name == "m" },
+            "the successfully parsed member must survive",
+        )
+    }
+
+    @Test
+    fun `a stray closing brace at file scope is reported and does not truncate the file`() {
+        val source = """
+            robota a() {
+            }
+            }
+            robota b() {
+            }
+        """.trimIndent()
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer(source, "bad.krm", reporter).lex()
+        val cu = Parser(tokens, "bad.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the stray '}'")
+        assertEquals(2, cu.declarations.size, "the stray '}' must not swallow the rest of the file")
+        assertEquals("b", (cu.declarations[1] as krmelin.ast.Decl.FunDecl).name)
+    }
+
+    @Test
+    fun `statement keyword at file scope recovers instead of hanging forever`() {
+        assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+            val source = """
+                davaj 1
+                robota g() { }
+            """.trimIndent()
+            val reporter = DiagnosticReporter()
+            val tokens = Lexer(source, "bad.krm", reporter).lex()
+            val cu = Parser(tokens, "bad.krm", reporter).parse()
+            assertTrue(reporter.hasErrors, "expected a diagnostic for the top-level 'davaj'")
+            assertTrue(
+                cu.declarations.any { it is krmelin.ast.Decl.FunDecl && it.name == "g" },
+                "recovery should still surface the following function",
+            )
+        }
+    }
 }

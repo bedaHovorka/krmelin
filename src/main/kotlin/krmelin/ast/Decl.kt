@@ -42,7 +42,8 @@ sealed class Decl(override val span: SourceSpan) : Node(span) {
         val params: List<Param>,
         val returnType: TypeNode?,
         val throwsTypes: List<TypeNode>,
-        val body: FunBody,
+        /** `null` for an abstract declaration, which only `predpis` may contain. */
+        val body: FunBody?,
         override val span: SourceSpan,
     ) : Decl(span) {
         val isTest: Boolean get() = annotations.contains("Sichta")

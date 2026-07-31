@@ -472,4 +472,152 @@ class ParserAstTest {
         assertEquals(1, name.span.startLine)
         assertEquals(23, name.span.startCol)
     }
+
+    @Test
+    fun `predpis can declare a function with no body`() {
+        val cu = parse("""
+            predpis Zvire {
+                robota zvuk(): Dryst
+                robota veku(): Cyslo = 0
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations.single())
+        assertEquals(2, cls.members.size, "an abstract member must survive into the AST")
+        val abstract = assertIs<Decl.FunDecl>(cls.members[0])
+        assertEquals("zvuk", abstract.name)
+        assertNull(abstract.body, "a bodyless interface function has no body")
+        // A default implementation alongside it still parses as a body.
+        assertNotNull(assertIs<Decl.FunDecl>(cls.members[1]).body)
+    }
+
+    @Test
+    fun `annotations on a top-level property are preserved`() {
+        val cu = parse("""
+            @Parta
+            toz suite = 1
+        """.trimIndent())
+        val prop = assertIs<Decl.PropertyDecl>(cu.declarations.single())
+        assertEquals(listOf("Parta"), prop.annotations, "the annotation must reach the PropertyDecl")
+    }
+
+    @Test
+    fun `a class body opened on the next line is still the class body`() {
+        val cu = parse("""
+            tryda Foo
+            {
+                robota bar() { }
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations.single())
+        assertEquals(1, cls.members.size, "the body must belong to the class")
+    }
+
+    @Test
+    fun `a multi-line block comment in a class header does not detach the body`() {
+        // A multi-line block comment emits a synthetic NEWLINE. Landing between the class
+        // name and its '{' used to end the declaration, leaving an empty class and
+        // hoisting every member to the top level.
+        val cu = parse("""
+            tryda Foo /* a
+            b */ {
+                robota bar() { }
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations.single())
+        assertEquals(1, cls.members.size, "the body must belong to the class")
+        assertEquals("bar", assertIs<Decl.FunDecl>(cls.members[0]).name)
+    }
+
+    @Test
+    fun `annotations on their own line are attached to the declaration below`() {
+        // The idiomatic PorubaUnit layout. When the annotation was dropped here, every
+        // test suite written this way was invisible to @Parta/@Sichta discovery.
+        val cu = parse("""
+            @Parta
+            tryda MojeTesty {
+                @Sichta
+                robota test_scitani() {
+                    davaj 1
+                }
+            }
+        """.trimIndent())
+        val cls = assertIs<Decl.ClassDecl>(cu.declarations.single())
+        assertTrue(cls.isParta, "@Parta on its own line must reach the ClassDecl")
+        val fn = assertIs<Decl.FunDecl>(cls.members.single())
+        assertTrue(fn.isTest, "@Sichta on its own line must reach the FunDecl")
+    }
+
+    // Continuation keywords are written on the line after the closing brace at least as
+    // often as on the same line. Before these passed, the clause was silently dropped and
+    // its body was reparented into the enclosing block — an else-branch body became
+    // unconditional — with only a misleading "expected expression" to show for it.
+
+    @Test
+    fun `boinak on its own line still attaches to the if`() {
+        val cu = parse("""
+            robota f() {
+                kaj (fajne) {
+                    x()
+                }
+                boinak {
+                    y()
+                }
+            }
+        """.trimIndent())
+        val block = (singleFun(cu).body as krmelin.ast.FunBody.BlockBody).block
+        val ifStmt = assertIs<Stmt.IfStmt>(block.statements.single())
+        assertNotNull(ifStmt.elseBlock, "the 'boinak' block must be the else branch")
+        assertEquals(1, ifStmt.elseBlock!!.statements.size)
+    }
+
+    @Test
+    fun `kajtez on its own line still attaches to the if`() {
+        val cu = parse("""
+            robota f() {
+                kaj (a) {
+                    x()
+                }
+                kajtez (b) {
+                    y()
+                }
+            }
+        """.trimIndent())
+        val block = (singleFun(cu).body as krmelin.ast.FunBody.BlockBody).block
+        val ifStmt = assertIs<Stmt.IfStmt>(block.statements.single())
+        assertEquals(1, ifStmt.elseIfs.size, "the 'kajtez' clause must attach to the if")
+    }
+
+    @Test
+    fun `bitka on its own line still attaches to the try`() {
+        val cu = parse("""
+            robota f() {
+                pultik {
+                    x()
+                }
+                bitka (f: Flakanec) {
+                    y()
+                }
+            }
+        """.trimIndent())
+        val block = (singleFun(cu).body as krmelin.ast.FunBody.BlockBody).block
+        val tryStmt = assertIs<Stmt.TryStmt>(block.statements.single())
+        assertEquals(1, tryStmt.catches.size, "the 'bitka' clause must attach to the pultik")
+    }
+
+    @Test
+    fun `fajront on its own line still attaches to the try`() {
+        val cu = parse("""
+            robota f() {
+                pultik {
+                    x()
+                }
+                fajront {
+                    y()
+                }
+            }
+        """.trimIndent())
+        val block = (singleFun(cu).body as krmelin.ast.FunBody.BlockBody).block
+        val tryStmt = assertIs<Stmt.TryStmt>(block.statements.single())
+        assertNotNull(tryStmt.finallyBlock, "the 'fajront' block must attach to the pultik")
+    }
 }

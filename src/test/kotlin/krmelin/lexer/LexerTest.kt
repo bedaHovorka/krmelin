@@ -330,4 +330,76 @@ class LexerTest {
             tokens.map { it.type },
         )
     }
+
+    @Test
+    fun `a closing brace inside a nested string does not end the interpolation`() {
+        // The depth counter tracked braces only, so the '}' inside the inner string
+        // literal terminated the interpolation early and cascaded four bogus errors.
+        val (tokens, reporter) = lex("\"a\${f(\"}\")}b\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val value = tokens[0].value as StringValue.Template
+        assertEquals("f(\"}\")", value.parts.filterIsInstance<StringPart.Expr>().single().source)
+    }
+
+    @Test
+    fun `an escaped quote inside a nested string is skipped`() {
+        val (tokens, reporter) = lex("\"a\${f(\"\\\"}\")}b\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val value = tokens[0].value as StringValue.Template
+        assertEquals("f(\"\\\"}\")", value.parts.filterIsInstance<StringPart.Expr>().single().source)
+    }
+
+    @Test
+    fun `an interpolation inside a nested string is handled`() {
+        val (tokens, reporter) = lex("\"a\${f(\"\${x}\")}b\"")
+        assertFalse(reporter.hasErrors, reporter.render())
+        val value = tokens[0].value as StringValue.Template
+        assertEquals("f(\"\${x}\")", value.parts.filterIsInstance<StringPart.Expr>().single().source)
+    }
+
+    @Test
+    fun `an unterminated nested string is reported at the newline without swallowing it`() {
+        val (tokens, reporter) = lex("\"a\${f(\"\nb")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the unterminated nested string")
+        assertTrue(
+            tokens.any { it.type == TokenType.NEWLINE },
+            "the line break must survive as a statement separator, got ${tokens.map { it.type }}",
+        )
+    }
+
+    @Test
+    fun `an unterminated nested string at end of input is reported rather than crashing`() {
+        val (tokens, reporter) = lex("\"a\${f(\"")
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the unterminated nested string")
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `absurdly nested string templates are reported rather than overflowing the stack`() {
+        val depth = 60
+        val source = "\"" + "\${\"".repeat(depth) + "x" + "\"}".repeat(depth) + "\""
+        val (tokens, reporter) = lex(source)
+        assertTrue(reporter.hasErrors, "expected a nesting-depth diagnostic")
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `a backslash at end of input is reported rather than crashing`() {
+        // escape() read one character past the end of the source; a file truncated right
+        // after a backslash killed the compiler with StringIndexOutOfBoundsException
+        // instead of reporting the unterminated string.
+        val (tokens, reporter) = lex("toz s = \"ab\\")
+        assertTrue(reporter.hasErrors, "expected an unterminated-string diagnostic")
+        assertEquals(TokenType.EOF, tokens.last().type)
+    }
+
+    @Test
+    fun `a backslash before a newline does not swallow the line break`() {
+        val (tokens, reporter) = lex("\"a\\\nb\"")
+        assertTrue(reporter.hasErrors, "expected an unterminated-string diagnostic")
+        assertTrue(
+            tokens.any { it.type == TokenType.NEWLINE },
+            "the line break must still terminate the statement, got ${tokens.map { it.type }}",
+        )
+    }
 }

@@ -198,4 +198,25 @@ class ExprParserTest {
         val e = assertIs<Expr.CallExpr>(expr("foo(\n1,\n2\n)"))
         assertEquals(2, e.args.size)
     }
+
+    @Test
+    fun `a non-identifier lambda parameter is rejected`() {
+        // The identifier guard was applied to the first parameter only, so '2' was
+        // accepted as a parameter name and the mistake surfaced much later as a
+        // kotlinc error on generated code the user never wrote.
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("robota main() {\n    toz f = { a, 2 -> a }\n}", "expr.krm", reporter).lex()
+        Parser(tokens, "expr.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the '2' parameter")
+    }
+
+    @Test
+    fun `leftover tokens inside a string interpolation are reported`() {
+        // The sub-parser parsed 'a' and silently discarded 'b', so the program compiled
+        // cleanly while printing something the source never said.
+        val reporter = DiagnosticReporter()
+        val tokens = Lexer("robota main() {\n    zarvat(\"x \${a b}\")\n}", "expr.krm", reporter).lex()
+        Parser(tokens, "expr.krm", reporter).parse()
+        assertTrue(reporter.hasErrors, "expected a diagnostic for the discarded 'b'")
+    }
 }

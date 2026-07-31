@@ -51,11 +51,21 @@ class Parser(
             skipNewlines()
         }
         val declarations = mutableListOf<Decl>()
-        while (!isAtEnd() && !check(TokenType.RBRACE)) {
+        while (!isAtEnd()) {
+            // There is no enclosing brace at file scope, so a '}' here is a typo rather
+            // than a terminator. Report and step over it: stopping the loop instead would
+            // silently drop every remaining declaration without a single diagnostic.
+            if (check(TokenType.RBRACE)) {
+                error(peek(), "unexpected '}' — no block is open here")
+                advance()
+                skipNewlines()
+                continue
+            }
+            val before = currentPosition()
             try {
                 declarations += parseTopLevelDecl()
             } catch (e: ParseError) {
-                synchronize()
+                synchronizeFrom(before)
             }
             skipNewlines()
         }
@@ -78,7 +88,7 @@ class Parser(
             TokenType.ROBOTA -> parseFunDecl(annotations)
             TokenType.TOZ,
             TokenType.MOZEJ -> {
-                val prop = parsePropertyDecl()
+                val prop = parsePropertyDecl(annotations)
                 expectNewlineOrSemi("property declaration must end with a newline")
                 prop
             }
@@ -94,6 +104,9 @@ class Parser(
                 TokenType.AT_PARTA -> "Parta"
                 else -> ""
             }
+            // An annotation is a prefix of the declaration below it, not a statement of
+            // its own, so the line break after it is formatting rather than a separator.
+            skipNewlines()
         }
         return annotations
     }
@@ -139,8 +152,22 @@ class Parser(
             expect(TokenType.TRYDA, "expected 'tryda', 'jedynak', or 'predpis'")
         }
         val name = expectIdentifier("expected a class name")
-        val params = if (!isObject && !isInterface && check(TokenType.LPAREN)) parseParamList() else emptyList()
-        val body = if (check(TokenType.LBRACE)) parseClassBody() else emptyList()
+        val params = when {
+            check(TokenType.LPAREN) && (isObject || isInterface) -> {
+                // Report, then consume and discard the list anyway. Leaving the '(' in
+                // place would make the '{' below invisible, so the whole body was parsed
+                // as top-level declarations and every member silently changed scope.
+                val what = if (isObject) "jedynak" else "predpis"
+                error(peek(), "'$what' cannot have constructor parameters")
+                parseParamList()
+                emptyList()
+            }
+            check(TokenType.LPAREN) -> parseParamList()
+            else -> emptyList()
+        }
+        // The body may open on the next line — either by choice, or because a multi-line
+        // block comment in the header emitted a synthetic NEWLINE.
+        val body = if (checkAfterNewlines(TokenType.LBRACE)) parseClassBody(allowAbstract = isInterface) else emptyList()
         return Decl.ClassDecl(
             name = name,
             params = params,
@@ -153,26 +180,29 @@ class Parser(
         )
     }
 
-    private fun parseClassBody(): List<Decl> {
+    private fun parseClassBody(allowAbstract: Boolean): List<Decl> {
         val start = expect(TokenType.LBRACE, "expected '{' before class body")
         skipNewlines()
         val members = mutableListOf<Decl>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
+            val before = currentPosition()
             try {
-                members += parseMember()
+                members += parseMember(allowAbstract)
             } catch (e: ParseError) {
-                synchronize()
+                synchronizeFrom(before)
             }
             skipNewlines()
         }
-        expect(TokenType.RBRACE, "expected '}' after class body")
+        // Report but do not throw: throwing here would discard the ClassDecl along with
+        // every member already parsed, and every declaration after it, for one typo.
+        if (!match(TokenType.RBRACE)) error(peek(), "expected '}' after class body")
         return members
     }
 
-    private fun parseMember(): Decl {
+    private fun parseMember(allowAbstract: Boolean): Decl {
         val annotations = parseAnnotations()
         return when (peek().type) {
-            TokenType.ROBOTA -> parseFunDecl(annotations)
+            TokenType.ROBOTA -> parseFunDecl(annotations, allowAbstract)
             TokenType.TOZ,
             TokenType.MOZEJ -> {
                 val prop = parsePropertyDecl(annotations)
@@ -183,7 +213,7 @@ class Parser(
         }
     }
 
-    private fun parseFunDecl(annotations: List<String>): Decl.FunDecl {
+    private fun parseFunDecl(annotations: List<String>, allowAbstract: Boolean = false): Decl.FunDecl {
         val start = expect(TokenType.ROBOTA, "expected 'robota'")
         val name = expectIdentifier("expected a function name")
         val params = parseParamList()
@@ -194,7 +224,7 @@ class Parser(
                 throwsTypes += parseType()
             } while (match(TokenType.COMMA))
         }
-        val body = parseFunBody()
+        val body = parseFunBody(allowAbstract)
         return Decl.FunDecl(
             annotations = annotations,
             name = name,
@@ -268,7 +298,13 @@ class Parser(
         return args
     }
 
-    private fun parseFunBody(): FunBody {
+    private fun parseFunBody(allowAbstract: Boolean): FunBody? {
+        // Check before skipping newlines: the line break after the return type is what
+        // marks the declaration as bodyless, so consuming it first would hide it.
+        if (check(TokenType.NEWLINE, TokenType.RBRACE) || isAtEnd()) {
+            if (allowAbstract) return null
+            throw error(peek(), "expected a function body ('{' or '='); only 'predpis' may omit it")
+        }
         skipNewlines()
         return when {
             match(TokenType.ASSIGN) -> {
@@ -287,15 +323,20 @@ class Parser(
         skipNewlines()
         val statements = mutableListOf<Stmt>()
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
+            val before = currentPosition()
             try {
                 val stmt = parseStatement()
+                // 'break' must leave the loop without running recovery: a null statement
+                // means '}' or EOF, which the loop condition handles.
                 if (stmt != null) statements += stmt else break
             } catch (e: ParseError) {
-                synchronize()
+                synchronizeFrom(before)
             }
             skipNewlines()
         }
-        expect(TokenType.RBRACE, "expected '}' after block")
+        // As in parseClassBody: keep the statements we have rather than losing the whole
+        // enclosing function to a single missing brace.
+        if (!match(TokenType.RBRACE)) error(peek(), "expected '}' after block")
         return Stmt.Block(statements, span(start, previous()))
     }
 
@@ -332,7 +373,7 @@ class Parser(
         expect(TokenType.RPAREN, "expected ')' after condition")
         val thenBlock = parseBlock()
         val elseIfs = mutableListOf<Stmt.ElseIf>()
-        while (match(TokenType.KAJTEZ)) {
+        while (matchAfterNewlines(TokenType.KAJTEZ)) {
             expect(TokenType.LPAREN, "expected '(' after 'kajtez'")
             skipNewlines()
             val elifCond = parseExpression()
@@ -341,7 +382,7 @@ class Parser(
             val elifBlock = parseBlock()
             elseIfs += Stmt.ElseIf(elifCond, elifBlock)
         }
-        val elseBlock = if (match(TokenType.BOINAK)) parseBlock() else null
+        val elseBlock = if (matchAfterNewlines(TokenType.BOINAK)) parseBlock() else null
         return Stmt.IfStmt(condition, thenBlock, elseIfs, elseBlock, span(start, previous()))
     }
 
@@ -362,8 +403,16 @@ class Parser(
         while (!isAtEnd() && !check(TokenType.RBRACE)) {
             skipNewlines()
             if (check(TokenType.RBRACE)) break
-            val branch = parseWhenBranch()
-            branches += branch
+            // Capture the position *after* the newline skip: taking it at the top of the
+            // iteration would leave `before` behind a consumed newline, so the first
+            // failing branch would look like it made progress and emit a second
+            // diagnostic before converging.
+            val before = currentPosition()
+            try {
+                branches += parseWhenBranch()
+            } catch (e: ParseError) {
+                synchronizeFrom(before)
+            }
         }
         expect(TokenType.RBRACE, "expected '}' after 'podle_teho' body")
         return Stmt.WhenStmt(subject, branches, span(start, previous()))
@@ -452,14 +501,14 @@ class Parser(
         val start = expect(TokenType.PULTIK, "expected 'pultik'")
         val block = parseBlock()
         val catches = mutableListOf<Stmt.Catch>()
-        while (match(TokenType.BITKA)) {
+        while (matchAfterNewlines(TokenType.BITKA)) {
             expect(TokenType.LPAREN, "expected '(' after 'bitka'")
             val param = parseParam()
             expect(TokenType.RPAREN, "expected ')' after 'bitka' parameter")
             val catchBlock = parseBlock()
             catches += Stmt.Catch(param, catchBlock)
         }
-        val finallyBlock = if (match(TokenType.FAJRONT)) parseBlock() else null
+        val finallyBlock = if (matchAfterNewlines(TokenType.FAJRONT)) parseBlock() else null
         return Stmt.TryStmt(block, catches, finallyBlock, span(start, previous()))
     }
 
@@ -526,6 +575,31 @@ class Parser(
         while (check(TokenType.NEWLINE)) advance()
     }
 
+    /**
+     * Skips newlines and reports whether one of [types] follows, restoring the cursor
+     * when it does not.
+     *
+     * Statement termination is newline-significant (Plan.md §4.3), so newlines cannot be
+     * skipped unconditionally — doing so would let an unrelated following block be
+     * mistaken for a continuation. This is for the positions where a line break is a
+     * formatting choice rather than a separator: a `boinak`/`bitka` clause after the
+     * closing brace of its block, or a class body opened on the next line.
+     */
+    private fun checkAfterNewlines(vararg types: TokenType): Boolean {
+        val saved = currentPosition()
+        skipNewlines()
+        if (check(*types)) return true
+        restorePosition(saved)
+        return false
+    }
+
+    /** [checkAfterNewlines], consuming the matched token. */
+    private fun matchAfterNewlines(vararg types: TokenType): Boolean {
+        if (!checkAfterNewlines(*types)) return false
+        advance()
+        return true
+    }
+
     internal fun currentPosition(): Int = current
 
     internal fun restorePosition(pos: Int) {
@@ -533,8 +607,34 @@ class Parser(
     }
 
     /**
+     * Panic-mode recovery that is guaranteed to make progress.
+     *
+     * [synchronize] deliberately stops *at* a restart token without consuming it, so a
+     * caller that can parse that token resumes cleanly. When the caller cannot parse it
+     * — every token in `syncTokens` that the enclosing dispatcher has no case for — the
+     * cursor would not move and the caller would re-enter the identical failing parse
+     * forever, appending a diagnostic each pass until the JVM died. Recovery loops must
+     * therefore call this, not [synchronize] directly, passing the cursor position they
+     * started the failed parse from.
+     *
+     * `<=` rather than `==` because [restorePosition] can move the cursor backwards
+     * (see `parseQualifiedName` and `ExprParser.parseLambda`); neither can currently
+     * restore past a loop start, but `==` would silently reopen the hang if that changed.
+     */
+    internal fun synchronizeFrom(from: Int) {
+        synchronize()
+        if (current <= from) {
+            restorePosition(from)
+            advance()
+        }
+    }
+
+    /**
      * Panic-mode recovery: skip tokens until we reach a likely boundary.
      * Stops at newline, '}', or at the start of a fresh declaration/statement.
+     *
+     * Callers in a retry loop must use [synchronizeFrom] instead — this can return
+     * without consuming anything.
      */
     internal fun synchronize() {
         if (isAtEnd()) return
@@ -543,14 +643,15 @@ class Parser(
             return
         }
         if (peek().type == TokenType.RBRACE) return
-        // Only tokens that parseTopLevelDecl/parseMember/parseStatement can actually
-        // dispatch on belong here. KAJTEZ/BOINAK/BITKA/FAJRONT are continuation-only
-        // keywords with no such dispatch case: if one of them is the offending token
-        // itself (e.g. a stray 'boinak' with no matching 'kaj'), returning without
-        // consuming it would make the caller retry the exact same failing parse
-        // forever. The enclosing-construct case they were meant to guard against is
-        // already handled by the RBRACE check above, since kajtez/boinak/bitka/fajront
-        // always follow a block's closing '}' in this grammar.
+        // Kept deliberately minimal. KAJTEZ/BOINAK/BITKA/FAJRONT are continuation-only
+        // keywords with no dispatch case of their own, and they always follow a block's
+        // closing '}' in this grammar, so the RBRACE check above already stops before
+        // them; adding them back would buy nothing while making the progress invariant
+        // in synchronizeFrom load-bearing in four more places.
+        //
+        // No entry here is required to be one the caller can dispatch on: stopping at a
+        // token the caller cannot parse is safe because synchronizeFrom guarantees the
+        // cursor moves anyway.
         val syncTokens = setOf(
             TokenType.ROBOTA, TokenType.TRYDA, TokenType.ZAPISNIK,
             TokenType.JEDYNAK, TokenType.PREDPIS, TokenType.KAJ,
@@ -595,7 +696,15 @@ class Parser(
                     val subLexer = krmelin.lexer.Lexer(part.source, file, reporter, part.startLine, part.startCol)
                     val subTokens = subLexer.lex()
                     val subParser = Parser(subTokens, file, reporter)
-                    TemplatePart.Interpolation(subParser.parseExpression())
+                    val expr = subParser.parseExpression()
+                    // The sub-expression must consume the whole interpolation. Anything
+                    // left over would be dropped silently, so the emitted Kotlin would
+                    // print something the source never said.
+                    subParser.skipNewlines()
+                    if (!subParser.isAtEnd()) {
+                        subParser.error(subParser.peek(), "unexpected token in string template")
+                    }
+                    TemplatePart.Interpolation(expr)
                 }
             }
         }

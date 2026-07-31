@@ -165,7 +165,17 @@ class ExprParser(private val parser: Parser) {
                         hasArrow = true
                         break
                     }
-                    parser.match(TokenType.COMMA) -> continue
+                    parser.match(TokenType.COMMA) -> {
+                        parser.skipNewlines()
+                        // Past a comma this is committed to being a parameter list —
+                        // '{ a, b }' is not a valid statement sequence, so there is no
+                        // other reading to back off to. Anything but an identifier here
+                        // is an error, not a reason to reinterpret the braces as a body.
+                        if (!parser.check(TokenType.IDENTIFIER)) {
+                            throw parser.error(parser.peek(), "expected a lambda parameter name")
+                        }
+                        continue
+                    }
                     else -> break
                 }
             }
@@ -175,12 +185,19 @@ class ExprParser(private val parser: Parser) {
             params.clear()
         }
 
-        // Parse the body as a block of statements until '}'.
+        // Parse the body as a block of statements until '}', recovering per statement the
+        // way Parser.parseBlock does. Without this a ParseError escapes past the lambda's
+        // own '}', so the enclosing block consumes the wrong brace and every declaration
+        // after it is reparented or lost.
         val bodyStmts = mutableListOf<Stmt>()
         while (!parser.isAtEnd() && !parser.check(TokenType.RBRACE)) {
-            val stmt = parser.parseStatement()
-            if (stmt == null) break
-            bodyStmts += stmt
+            val before = parser.currentPosition()
+            try {
+                val stmt = parser.parseStatement() ?: break
+                bodyStmts += stmt
+            } catch (e: ParseError) {
+                parser.synchronizeFrom(before)
+            }
             parser.skipNewlines()
         }
         val close = parser.expect(TokenType.RBRACE, "expected '}' after lambda body")

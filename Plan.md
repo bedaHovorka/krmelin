@@ -210,7 +210,8 @@ member         = funDecl | propertyDecl ;
 funDecl        = { annotation } "robota" IDENT paramList
                  [ ":" type ] [ "rozdava" type { "," type } ] funBody ;
 annotation     = "@Sichta" | "@Parta" ;
-funBody        = block | "=" expr NL ;
+funBody        = block | "=" expr NL | NL ;   (* the bare-NL form declares an abstract
+                                                 function and is legal only inside predpis *)
 paramList      = "(" [ param { "," param } ] ")" ;
 param          = [ "toz" | "mozej" ] IDENT ":" type [ "=" expr ] ;
 

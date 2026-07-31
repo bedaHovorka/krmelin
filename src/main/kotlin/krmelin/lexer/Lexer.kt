@@ -193,21 +193,9 @@ class Lexer(
                             val exprStart = current
                             val exprStartLine = line
                             val exprStartCol = col
-                            var depth = 1
-                            while (!isAtEnd() && depth > 0) {
-                                when (advance()) {
-                                    '{' -> depth++
-                                    '}' -> depth--
-                                    '\n' -> {
-                                        reportError("unterminated string template expression")
-                                        flushText()
-                                        addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
-                                        return
-                                    }
-                                }
-                            }
-                            if (depth != 0) {
-                                reportError("unterminated string template expression")
+                            if (!skipTemplateExprBody(nest = 0)) {
+                                // The helper has already reported; bail out the same way
+                                // the other unterminated cases in this loop do.
                                 flushText()
                                 addToken(TokenType.STRING_LITERAL, StringValue.Template(parts))
                                 return
@@ -232,7 +220,12 @@ class Lexer(
                 }
                 '\\' -> {
                     advance()
-                    textBuilder.append(escape())
+                    // A backslash at end of input, or immediately before a line break, is
+                    // not an escape. Consuming what follows would read past the end of the
+                    // source, or swallow the newline that terminates the statement; leave
+                    // it for the '\n' arm and the isAtEnd() handler below, which already
+                    // report the unterminated string.
+                    if (!isAtEnd() && peek() != '\n') textBuilder.append(escape())
                 }
                 else -> {
                     textBuilder.append(c)
@@ -258,6 +251,83 @@ class Lexer(
             StringValue.Template(parts)
         }
         addToken(TokenType.STRING_LITERAL, value)
+    }
+
+    /**
+     * Scans the body of a `${...}` interpolation, stopping just past its closing brace.
+     *
+     * Braces alone are not enough to find that closing brace: a `}` inside a nested
+     * string literal is content, not structure, so nested strings are skipped whole.
+     * Returns false, having reported, when the interpolation is unterminated or nested
+     * too deeply; the caller then bails out of [string].
+     */
+    private fun skipTemplateExprBody(nest: Int): Boolean {
+        if (nest > MAX_TEMPLATE_NESTING) {
+            reportError("string template nesting too deep")
+            return false
+        }
+        var depth = 1
+        while (!isAtEnd() && depth > 0) {
+            when (peek()) {
+                '{' -> { advance(); depth++ }
+                '}' -> { advance(); depth-- }
+                // Do not consume the newline: it still has to terminate the statement.
+                '\n' -> {
+                    reportError("unterminated string template expression")
+                    return false
+                }
+                '"' -> {
+                    advance()
+                    if (!skipNestedString(nest + 1)) return false
+                }
+                else -> advance()
+            }
+        }
+        if (depth != 0) {
+            reportError("unterminated string template expression")
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Skips a string literal nested inside an interpolation, stopping just past its
+     * closing quote. The text is not interpreted here — it is re-lexed later by the
+     * sub-lexer in `Parser.stringPartsToTemplate`, so escapes are stepped over rather
+     * than decoded (calling [escape] would double-report every invalid escape).
+     */
+    private fun skipNestedString(nest: Int): Boolean {
+        if (nest > MAX_TEMPLATE_NESTING) {
+            reportError("string template nesting too deep")
+            return false
+        }
+        while (!isAtEnd()) {
+            when (peek()) {
+                '"' -> { advance(); return true }
+                '\n' -> {
+                    reportError("unterminated string literal")
+                    return false
+                }
+                '\\' -> {
+                    advance()
+                    if (isAtEnd() || peek() == '\n') {
+                        reportError("unterminated string literal")
+                        return false
+                    }
+                    advance()
+                }
+                '$' -> {
+                    advance()
+                    if (peek() == '{') {
+                        advance()
+                        if (!skipTemplateExprBody(nest + 1)) return false
+                    }
+                }
+                else -> advance()
+            }
+        }
+        reportError("unterminated string literal")
+        return false
     }
 
     private fun escape(): Char {
@@ -354,6 +424,13 @@ class Lexer(
         return true
     }
 }
+
+/**
+ * Depth limit for string templates nested inside each other. Interpolation scanning is
+ * recursive, so without a bound an adversarial source file is a StackOverflowError —
+ * which, unlike a diagnostic, no part of the compiler recovers from.
+ */
+private const val MAX_TEMPLATE_NESTING = 32
 
 /** Value carried by a [TokenType.STRING_LITERAL] token. */
 sealed class StringValue {
