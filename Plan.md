@@ -752,3 +752,5 @@ Global: `--version`, `--help`, `--no-color`, `-v/--verbose`.
 ### Note on the name
 
 **Krmelín** is a real municipality in the Frýdek-Místek District, Moravian-Silesian Region — 2,356 inhabitants (2025), about 7 km south of Ostrava, first recorded in 1447 as *"in villa Krmelyn."* Thematically apt, with no evident software-trademark conflict. As with LOLCODE, ArnoldC, and Rockstar (MIT-licensed), ship under MIT, avoid implying municipal or official endorsement, and steer clear of unrelated entities' marks.
+
+**Personal connection:** the author studied Compiler Construction in Brno under Alexander Meduna and Roman Lukáš — the academic root of this project's lexer/parser/codegen pipeline (§5). The author also knows a family from Krmelín itself, with whom they spent time in the USA.

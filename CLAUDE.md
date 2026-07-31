@@ -14,7 +14,7 @@ Krmelin is a satirical programming language: Kotlin, but with source keywords re
 
 Per Plan.md §2/§8/§11 (not yet scaffolded — M1 creates these):
 
-- **Language/build**: Kotlin (JVM, Kotlin 2.x), Gradle with Kotlin DSL. Build: `./gradlew build`.
+- **Language/build**: Kotlin (JVM, Kotlin 2.x) on JDK 21, Gradle with Kotlin DSL. Build: `./gradlew build`.
 - **CLI**: Clikt-based `krmelin` binary with subcommands `compile <file>`, `run <file>`, `test [path]`, `fmt <file|dir>`, `repl` (see §11 for flags and exit codes per command).
 - **Tests**: JUnit 5 for the compiler itself; a self-built, JUnit-independent test framework ("PorubaUnit") for Krmelin-language programs, discovered via `@Sichta`/`@Parta` annotations and run through `krmelin test`.
 

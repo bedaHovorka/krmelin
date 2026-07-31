@@ -1,0 +1,23 @@
+Krmelin — Third-Party Notices and Attributions
+================================================
+
+Krmelin is an independent, clean-room project inspired by the concept
+pioneered by Tomáš Kohout's OSTRAJava (https://github.com/tkohout/OSTRAJava).
+No source code from OSTRAJava is used, copied, or derived. Some keyword
+choices are affectionate nods to design discussions in that project's issue
+tracker. Krmelin is not endorsed by its author.
+
+The dialect vocabulary used in Krmelin keywords is drawn from publicly
+documented ostravština / lašské nářečí (Lach dialect) sources and is part of
+the natural-language public domain.
+
+Third-party libraries used by Krmelin are listed below with their respective
+licenses.
+
+  Clikt — https://github.com/ajalt/clikt
+  Copyright (c) 2018 AJ Alt
+  License: Apache-2.0
+
+  JUnit 5 — https://junit.org/junit5/
+  Copyright (c) 2015-2024 The JUnit Team
+  License: Eclipse Public License 2.0
