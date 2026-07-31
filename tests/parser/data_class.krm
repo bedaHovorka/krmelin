@@ -1,0 +1,5 @@
+zapisnik tryda Haviř(toz mejno: Dryst, mozej odrubano: Cyslo)
+
+robota pozdrav(mejno: Dryst = "cype") {
+    zarvat("Nazdar, $mejno!")
+}

@@ -1,0 +1,17 @@
+robota drystaniPredMikrofonem() : Dryst rozdava Flakanec {
+    kaj (mikrofon != chuj aj mikrofon.zapnuty) {
+        davaj "Hanzel desitka"
+    } boinak {
+        dostanes Flakanec("mikrofon je vypnuty")
+    }
+}
+
+robota rynek() {
+    pultik {
+        zarvat(drystaniPredMikrofonem())
+    } bitka (f: Flakanec) {
+        zarvat("dostal sem: ${f.zprava}")
+    } fajront {
+        zarvat("fajront, chlapi")
+    }
+}

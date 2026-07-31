@@ -197,22 +197,23 @@ Constructs kept with Kotlin names to limit scope: generics `<>`, lambdas `{ }`, 
 
 ```ebnf
 program        = { topLevelDecl } ;
-topLevelDecl   = packageDecl | importDecl | classDecl | funDecl ;
+topLevelDecl   = packageDecl | importDecl | classDecl | funDecl | propertyDecl ;
 packageDecl    = "sachta" qualifiedName NL ;
 importDecl     = "privezt" qualifiedName [ "." "*" ] NL ;
 
-classDecl      = [ "zapisnik" ] "tryda" IDENT [ paramList ] classBody
-               | "jedynak" IDENT classBody
-               | "predpis" IDENT classBody ;
+classDecl      = { annotation } ( [ "zapisnik" ] "tryda" IDENT [ paramList ] [ classBody ]
+               | "jedynak" IDENT [ classBody ]
+               | "predpis" IDENT [ classBody ] ) ;
 classBody      = "{" { member } "}" ;
 member         = funDecl | propertyDecl ;
 
 funDecl        = { annotation } "robota" IDENT paramList
                  [ ":" type ] [ "rozdava" type { "," type } ] funBody ;
 annotation     = "@Sichta" | "@Parta" ;
-funBody        = block | "=" expr NL ;
+funBody        = block | "=" expr NL | NL ;   (* the bare-NL form declares an abstract
+                                                 function and is legal only inside predpis *)
 paramList      = "(" [ param { "," param } ] ")" ;
-param          = IDENT ":" type [ "=" expr ] ;
+param          = [ "toz" | "mozej" ] IDENT ":" type [ "=" expr ] ;
 
 propertyDecl   = ( "toz" | "mozej" ) IDENT [ ":" type ] [ "=" expr ] NL ;
 
@@ -226,7 +227,7 @@ statement      = propertyDecl
 ifStmt         = "kaj" "(" expr ")" block
                  { "kajtez" "(" expr ")" block }
                  [ "boinak" block ] ;
-whenStmt       = "podle_teho" "(" [ expr ] ")" "{" { whenBranch } "}" ;
+whenStmt       = "podle_teho" [ "(" [ expr ] ")" ] "{" { whenBranch } "}" ;
 whenBranch     = ( exprList | "boinak" ) "->" ( expr | block ) ;
 forStmt        = "prokazdy" "(" IDENT "v" expr ")" block ;
 whileStmt      = "rubaj" "(" expr ")" block ;
@@ -237,7 +238,7 @@ tryStmt        = "pultik" block { "bitka" "(" param ")" block } [ "fajront" bloc
 throwStmt      = "dostanes" expr NL ;
 exprStmt       = expr NL ;
 
-type           = IDENT [ "?" ] [ "<" type { "," type } ">" ] ;
+type           = IDENT [ "<" type { "," type } ">" ] [ "?" ] ;
 
 expr           = assignment ;
 assignment     = logicalOr [ "=" assignment ] ;
@@ -245,7 +246,7 @@ logicalOr      = logicalAnd { "ci" logicalAnd } ;
 logicalAnd     = equality { "aj" equality } ;
 equality       = comparison { ("==" | "!=") comparison } ;
 comparison     = elvis { ("<" | ">" | "<=" | ">=") elvis } ;
-elvis          = additive { "?:" additive } ;
+elvis          = additive [ "?:" elvis ] ;
 additive       = multiplicative { ("+" | "-") multiplicative } ;
 multiplicative = unary { ("*" | "/" | "%") unary } ;
 unary          = ("!" | "-") unary | postfix ;
@@ -608,28 +609,32 @@ Because Flakanci is the exception system rather than a standalone domain model, 
    = (optional one-line flourish)
 ```
 
+`<severity>` is a dialect word: `hawaryja` (error), `pozur` (warning), `oznam` (info),
+`dlubani` (debug), `sled` (trace). `<code>` carries the `HAV` prefix, short for
+*hawaryja* — see the ranges in `docs/language-spec.md`.
+
 **Examples:**
 
 ```
-chyba: neznamy vyraz 'rubaš' [E011]
+hawaryja: neznamy vyraz 'rubaš' [HAV110]
   --> examples/loop.krm:3:5
    |
  3 |     rubaš (i < 5) {
    |     ^^^^^ tohle neni klicove slovo
-   = pomoc: myslel si 'rubaj'? klicova slova jsou bez diakritiky
+   = pomoc: myslel si 'rubaj'? klicove slova su bez diakritiky
 ```
 
 ```
-chyba: robota 'delka' ma vracet Cyslo, ale 'davaj' nic nevraci [E042]
+hawaryja: robota 'delka' ma vracet Cyslo, ale 'davaj' nic nevraci [HAV342]
   --> src/util.krm:7:5
    |
  7 |     davaj
    |     ^^^^^ chybi hodnota za 'davaj'
-   = pomoc: napiš třeba 'davaj 0', nebo zruš navratovy typ
+   = pomoc: napis treba 'davaj 0', abo zrus navratovy typ
 ```
 
 ```
-chyba: promenna 'hodinyspanku' neni deklarovana [E020]
+hawaryja: promenna 'hodinyspanku' neni deklarovana [HAV220]
   --> examples/haviri.krm:12:16
    |
 12 |     davaj f.hodinyspanku > 8
@@ -638,7 +643,7 @@ chyba: promenna 'hodinyspanku' neni deklarovana [E020]
 ```
 
 ```
-chyba: podminka v 'kaj' musi byt Bul, ale je Cyslo [E031]
+hawaryja: podminka v 'kaj' musi byt Bul, ale je Cyslo [HAV331]
   --> src/main.krm:5:9
    |
  5 |     kaj (i + 1) {
@@ -647,7 +652,7 @@ chyba: podminka v 'kaj' musi byt Bul, ale je Cyslo [E031]
 ```
 
 ```
-chyba: 'bitka' bez 'pultik' [E061]
+hawaryja: 'bitka' bez 'pultik' [HAV161]
   --> examples/flakanci.krm:9:1
    |
  9 | bitka (f: Flakanec) {
@@ -657,7 +662,7 @@ chyba: 'bitka' bez 'pultik' [E061]
 ```
 
 ```
-chyba: 'pozdrav' bere 1 argument, dal si 2 [E050]
+hawaryja: 'pozdrav' bere 1 argument, dal si 2 [HAV350]
   --> examples/demo.krm:9:5
    |
  9 |     pozdrav("cype", "banik")
