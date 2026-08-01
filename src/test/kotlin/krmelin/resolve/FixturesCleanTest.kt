@@ -14,7 +14,7 @@ import kotlin.test.assertFalse
  */
 class FixturesCleanTest {
     private fun analyzeFixture(name: String): DiagnosticReporter {
-        val file = File("tests/parser/$name")
+        val file = File("tests/golden/$name")
         val source = file.readText()
         val reporter = DiagnosticReporter()
         reporter.registerSource(file.path, source)
@@ -27,9 +27,9 @@ class FixturesCleanTest {
 
     @Test
     fun `all parser fixtures resolve and typecheck clean`() {
-        val fixtures = File("tests/parser").listFiles { f -> f.extension == "krm" }
+        val fixtures = File("tests/golden").listFiles { f -> f.extension == "krm" }
             ?.sortedBy { it.name } ?: emptyList()
-        assert(fixtures.isNotEmpty()) { "no fixtures found under tests/parser/" }
+        assert(fixtures.isNotEmpty()) { "no fixtures found under tests/golden/" }
         for (file in fixtures) {
             val reporter = analyzeFixture(file.name)
             assertFalse(

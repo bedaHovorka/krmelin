@@ -36,6 +36,25 @@ object TestSupport {
         return Analyzed(unit, reporter, resolution)
     }
 
+    /**
+     * Runs the full M4 pipeline over [source] and returns the emitted Kotlin text.
+     * Fails the test when the front end reports any diagnostic.
+     */
+    fun transpile(source: String, file: String = TEST_FILE): String {
+        val analyzed = analyze(source, file)
+        val problems = analyzed.reporter.all
+        assertEquals(
+            emptyList(),
+            problems,
+            "transpile expects a clean front end, got:\n${analyzed.reporter.render()}",
+        )
+        val lowered = krmelin.lower.Lowering(analyzed.resolution).lower(analyzed.unit)
+        return krmelin.codegen.KotlinEmitter(analyzed.resolution).emit(lowered)
+    }
+
+    /** Transpiles a real file (golden tests, CLI-path diagnostics use the true name). */
+    fun transpileFile(file: java.io.File): String = transpile(file.readText(), file.path)
+
     /** Asserts exactly one diagnostic of [code] exists, at [span], mentioning [fragment]. */
     fun expectDiag(
         reporter: DiagnosticReporter,

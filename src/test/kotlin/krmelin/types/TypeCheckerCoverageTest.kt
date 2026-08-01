@@ -97,7 +97,9 @@ class TypeCheckerCoverageTest {
 
     @Test
     fun `lambdas pass through unchecked`() = clean(
-        "robota rynek() {\n    toz f = { x -> zarvat(x) }\n}",
+        // A parameterless lambda infers as `() -> Unit`, so it needs no context; the body is
+        // still walked but nothing in it is checked.
+        "robota rynek() {\n    toz f = { zarvat(\"hej\") }\n}",
     )
 
     @Test

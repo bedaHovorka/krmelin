@@ -1,0 +1,5 @@
+data class Haviř(val mejno: String, var odrubano: Int)
+
+fun pozdrav(mejno: String = "cype") {
+    println("Nazdar, $mejno!")
+}

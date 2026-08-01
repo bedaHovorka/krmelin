@@ -14,6 +14,7 @@ package krmelin.diag
  * | HAV100–HAV199 | parser |
  * | HAV200–HAV299 | resolver (M3) |
  * | HAV300–HAV399 | type checker (M3) |
+ * | HAV400–HAV499 | codegen / Kotlin backend (M4) |
  *
  * Keep [docs/language-spec.md](../../../../../../docs/language-spec.md) in step with this
  * list; Plan.md §10 requires a published index.
@@ -58,8 +59,36 @@ enum class DiagCode(val code: String) {
     /** Assignment to an immutable `toz` binding. */
     ASSIGN_TO_IMMUTABLE("HAV330"),
     CONDITION_NOT_BUL("HAV331"),
+    /**
+     * Assignment used where a value is expected. Kotlin has no assignment expressions, so
+     * `pridej(a = 7)` would silently become a *named argument* — see Plan.md §15.
+     */
+    ASSIGN_NOT_EXPRESSION("HAV332"),
+    /**
+     * A property declared outside a function body with no initializer. Legal for a local
+     * (Kotlin defers the assignment) but not at top level or in a `tryda` body.
+     */
+    UNINITIALIZED_PROPERTY("HAV333"),
+    /**
+     * A lambda with parameters in a position that gives it no expected type. Krmelin has no
+     * function-type syntax, so nothing can annotate the parameters and kotlinc cannot infer them.
+     */
+    LAMBDA_NEEDS_CONTEXT("HAV334"),
     /** `davaj <expr>` inside a function with no declared return type. */
     UNEXPECTED_RETURN_VALUE("HAV341"),
     RETURN_TYPE_MISMATCH("HAV342"),
     ARITY_MISMATCH("HAV350"),
+
+    // ── Codegen / Kotlin backend ─────────────────────────────────────────────
+    /** Catch-all for codegen failures that have no dedicated code. */
+    CODEGEN_INTERNAL("HAV400"),
+    /** `krmelin run --args` on a file with no top-level, parameterless `rynek`. */
+    NO_ENTRY_POINT("HAV401"),
+    /** The embedded Kotlin compiler rejected the emitted `.kt` (its own messages follow). */
+    BACKEND_FAILED("HAV410"),
+    /**
+     * Warning only: a different `Flakanci.kt` already sits beside the output, so the runtime
+     * source was not written there and the emitted `.kt` will not compile on its own.
+     */
+    RUNTIME_NOT_WRITTEN("HAV411"),
 }
