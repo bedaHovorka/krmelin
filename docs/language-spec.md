@@ -47,8 +47,8 @@ milestones can add codes without renumbering.
 |---|---|---|
 | HAV001–HAV099 | lexer | in use |
 | HAV100–HAV199 | parser | in use |
-| HAV200–HAV299 | resolver | reserved for M3 |
-| HAV300–HAV399 | type checker | reserved for M3 |
+| HAV200–HAV299 | resolver | in use |
+| HAV300–HAV399 | type checker | in use |
 
 ## Lexer (HAV001–HAV099)
 
@@ -77,6 +77,28 @@ milestones can add codes without renumbering.
 | HAV107 | A lambda parameter must be an identifier. |
 | HAV108 | Leftover token inside a `${...}`; an interpolation holds exactly one expression. |
 | HAV109 | Expected an expression; nothing valid can start here. |
+
+## Resolver (HAV200–HAV299)
+
+| Code | Meaning |
+|---|---|
+| HAV200 | Internal resolver failure; no more specific code applies. |
+| HAV201 | Duplicate declaration — the name already exists in this scope. |
+| HAV210 | Warning only: an inner declaration shadows an outer one with the same name. |
+| HAV220 | Undeclared name — no symbol with that name is visible here. |
+| HAV221 | Undeclared type name — not a prelude alias and not a declared `tryda`. |
+| HAV222 | Wrong number of type arguments — e.g. `Halda<Cyslo, Dryst>`, where `Halda` takes one. |
+
+## Type checker (HAV300–HAV399)
+
+| Code | Meaning |
+|---|---|
+| HAV300 | Type mismatch — the value's type does not fit the declared type. |
+| HAV330 | Assignment to an immutable `toz` binding. |
+| HAV331 | Condition must be `Bul` — `kaj`/`kajtez`/`rubaj`/`podle_teho` conditions. |
+| HAV341 | `davaj <expr>` returns a value but the function declares no return type. |
+| HAV342 | `davaj` does not match the function's declared return type. |
+| HAV350 | Wrong number of arguments at a call site. |
 
 ## Notes on wording
 

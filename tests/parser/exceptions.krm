@@ -1,4 +1,6 @@
-robota drystaniPredMikrofonem() : Dryst rozdava Flakanec {
+zapisnik tryda Mikrofon(mozej zapnuty: Bul)
+
+robota drystaniPredMikrofonem(mikrofon: Mikrofon? = chuj) : Dryst rozdava Flakanec {
     kaj (mikrofon != chuj aj mikrofon.zapnuty) {
         davaj "Hanzel desitka"
     } boinak {

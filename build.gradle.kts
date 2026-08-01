@@ -41,7 +41,7 @@ tasks.jacocoTestCoverageVerification {
     violationRules {
         rule {
             element = "PACKAGE"
-            includes = listOf("krmelin.lexer", "krmelin.parser")
+            includes = listOf("krmelin.lexer", "krmelin.parser", "krmelin.resolve", "krmelin.types")
             limit {
                 minimum = "0.90".toBigDecimal()
             }
