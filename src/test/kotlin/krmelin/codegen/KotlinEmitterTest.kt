@@ -73,14 +73,16 @@ class KotlinEmitterTest {
     }
 
     @Test
-    fun `rynek with rozdava keeps its name`() {
+    fun `rynek with rozdava is still the entry point`() {
+        // rozdava is documentation-only (§4.5) and @Throws is legal on Kotlin main, so a
+        // throwing rynek must still emit as main — otherwise it would be non-runnable.
         val kt = transpile(
             """
             robota rynek() rozdava Flakanec {
             }
             """.trimIndent(),
         )
-        assertEquals("import krmelin.runtime.*\n\n@Throws(Flakanec::class)\nfun rynek() {\n}\n", kt)
+        assertEquals("import krmelin.runtime.*\n\n@Throws(Flakanec::class)\nfun main() {\n}\n", kt)
     }
 
     // ── Literals, calls, simple statements ─────────────────────────────────
@@ -561,6 +563,87 @@ class KotlinEmitterTest {
         )
         assertEquals(
             "fun main() {\n    val pozdrav = { println(\"cau\") }\n}\n",
+            kt,
+        )
+    }
+
+    @Test
+    fun `lambda block body with control flow renders inline instead of crashing`() {
+        // The parser accepts full statements in a lambda block body; the emitter must
+        // render them as single-line Kotlin rather than throwing. Each nested block
+        // collapses to `{ ... }` with `;`-separated statements.
+        val kt = transpile(
+            """
+            robota rynek() {
+                toz f = { kaj (fajne) { zarvat("a") } boinak { zarvat("b") } }
+            }
+            """.trimIndent(),
+        )
+        assertEquals(
+            "fun main() {\n    val f = { if (true) { println(\"a\") } else { println(\"b\") } }\n}\n",
+            kt,
+        )
+    }
+
+    @Test
+    fun `lambda block body renders if else-if while and for inline`() {
+        val kt = transpile(
+            """
+            robota rynek() {
+                mozej x = 0
+                toz a = { kaj (x < 0) {
+                    zarvat("m")
+                } kajtez (x == 0) {
+                    zarvat("n")
+                } boinak {
+                    zarvat("p")
+                } }
+                toz b = { rubaj (fajne) {} }
+                toz c = { prokazdy (y v pole) {
+                    zarvat(y)
+                } }
+            }
+            """.trimIndent().let { "toz pole: Halda<Cyslo>\n\n$it" },
+        )
+        assertEquals(
+            "val pole: List<Int>\n\n" +
+                "fun main() {\n" +
+                "    var x = 0\n" +
+                "    val a = { if (x < 0) { println(\"m\") } else if (x == 0) { println(\"n\") } else { println(\"p\") } }\n" +
+                "    val b = { while (true) {} }\n" +
+                "    val c = { for (y in pole) { println(y) } }\n" +
+                "}\n",
+            kt,
+        )
+    }
+
+    @Test
+    fun `lambda block body renders when and try inline`() {
+        val kt = transpile(
+            """
+            robota rynek() {
+                mozej n = 1
+                toz w = { podle_teho (n) {
+                    1, 2 -> { zarvat("m") }
+                    boinak -> zarvat("j")
+                } }
+                toz t = { pultik {
+                    zarvat("v")
+                } bitka (f: Flakanec) {
+                    zarvat(f.zprava)
+                } fajront {
+                    zarvat("d")
+                } }
+            }
+            """.trimIndent(),
+        )
+        assertEquals(
+            "import krmelin.runtime.*\n\n" +
+                "fun main() {\n" +
+                "    var n = 1\n" +
+                "    val w = { when (n) { 1, 2 -> { println(\"m\") }; else -> println(\"j\") } }\n" +
+                "    val t = { try { println(\"v\") } catch (f: Flakanec) { println(f.zprava) } finally { println(\"d\") } }\n" +
+                "}\n",
             kt,
         )
     }

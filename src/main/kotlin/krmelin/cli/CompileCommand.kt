@@ -5,7 +5,9 @@ import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import krmelin.ast.Decl
 import krmelin.codegen.KotlinBackend
+import krmelin.codegen.KotlinPrelude
 import krmelin.codegen.MainClassName
 import krmelin.diag.DiagCode
 import krmelin.diag.Diagnostic
@@ -58,6 +60,28 @@ class CompileCommand : CliktCommand(
     }
 
     private fun buildJar(outcome: CompilePipeline.Outcome.Success, ktFile: File) {
+        // `--jar` advertises a runnable jar; without an entry point the manifest's
+        // Main-Class resolves to a file facade with no main(), so java -jar would
+        // fail with a confusing JVM error. Fail early with HAV401 instead, like `run`.
+        val hasEntryPoint = outcome.unit.declarations
+            .filterIsInstance<Decl.FunDecl>()
+            .any(KotlinPrelude::isEntryPoint)
+        if (!hasEntryPoint) {
+            echo(
+                CompilePipeline.renderStandalone(
+                    Diagnostic(
+                        Severity.ERROR,
+                        DiagCode.NO_ENTRY_POINT,
+                        "subor '$file' nema zavadeci funkci — jar se neda spustit",
+                        SourceSpan.NONE,
+                        fix = "doplň 'robota rynek() { ... }', aby mel jar co spustit",
+                    ),
+                ),
+                err = true,
+            )
+            throw ProgramResult(1)
+        }
+
         val workDir = Files.createTempDirectory("krmelin-jar").toFile()
         try {
             val sources = mutableListOf(ktFile)

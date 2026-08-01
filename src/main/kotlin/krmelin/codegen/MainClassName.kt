@@ -7,7 +7,9 @@ package krmelin.codegen
  */
 object MainClassName {
     fun forUnit(packageName: String?, fileBaseName: String): String {
-        val facade = fileBaseName.replaceFirstChar { it.uppercase() } + "Kt"
+        // uppercaseChar() is locale-independent (Unicode data, not the default locale),
+        // so the facade name we derive matches kotlinc's regardless of the JVM locale.
+        val facade = fileBaseName.replaceFirstChar { it.uppercaseChar() } + "Kt"
         return if (packageName.isNullOrEmpty()) facade else "$packageName.$facade"
     }
 

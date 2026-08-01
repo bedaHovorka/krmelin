@@ -78,6 +78,7 @@ class Lowering(private val resolution: Resolution) {
                 is LambdaBody.BlockBody -> scanBlock(b.block)
             }
             is Expr.ParenExpr -> scanExpr(e.expr)
+            is Expr.NameExpr -> { if (e.name in KotlinPrelude.FLAKANCI_TYPE_NAMES) foundFlakanci = true }
             is Expr.StringTemplate -> e.parts.forEach {
                 if (it is TemplatePart.Interpolation) scanExpr(it.expr)
             }

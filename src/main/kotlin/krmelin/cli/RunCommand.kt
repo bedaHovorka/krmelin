@@ -20,7 +20,7 @@ import java.nio.file.Files
 
 class RunCommand : CliktCommand(
     name = "run",
-    help = "Compile and execute a .krm source file. Exit codes: program's exit; 1 on compile error.",
+    help = "Compile and execute a .krm source file. Exit codes: program's exit; 1 compile error; 2 usage/IO.",
 ) {
     val file: String by argument(help = "Path to the .krm source file.")
     val args: String? by option("--args", help = "Arguments to pass to the program (whitespace-separated).")
@@ -43,11 +43,7 @@ class RunCommand : CliktCommand(
     private fun runProgram(outcome: CompilePipeline.Outcome.Success) {
         val hasEntryPoint = outcome.unit.declarations
             .filterIsInstance<Decl.FunDecl>()
-            .any {
-                it.name == KotlinPrelude.ENTRY_POINT_KRMELIN &&
-                    it.params.isEmpty() &&
-                    it.throwsTypes.isEmpty()
-            }
+            .any(KotlinPrelude::isEntryPoint)
         if (!hasEntryPoint) {
             echo(
                 CompilePipeline.renderStandalone(

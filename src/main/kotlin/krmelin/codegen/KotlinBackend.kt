@@ -41,7 +41,7 @@ object KotlinBackend {
         val stream = javaClass.classLoader.getResourceAsStream(FLAKANCI_RESOURCE)
             ?: error("$FLAKANCI_RESOURCE missing from the jar — compiler packaging is broken")
         val target = File(destDir, "Flakanci.kt")
-        target.writeBytes(stream.readBytes())
+        stream.use { target.writeBytes(it.readBytes()) }
         return target
     }
 }

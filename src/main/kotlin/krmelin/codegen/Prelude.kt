@@ -1,5 +1,7 @@
 package krmelin.codegen
 
+import krmelin.ast.Decl
+
 /**
  * Emission-time name mappings (Plan.md §4.6).
  *
@@ -30,6 +32,17 @@ object KotlinPrelude {
     /** Top-level, parameterless `rynek` is the entry point, emitted as Kotlin `main`. */
     const val ENTRY_POINT_KRMELIN = "rynek"
     const val ENTRY_POINT_KOTLIN = "main"
+
+    /**
+     * Whether [decl] is the program entry point: a `rynek` with no parameters. Any
+     * `rozdava` (throws) clause is *not* consulted — `rozdava` is documentation-only
+     * (Plan.md §4.5) and `@Throws` is legal on Kotlin `main`, so a throwing `rynek`
+     * must still be runnable. Whether [decl] is also top-level is the caller's call
+     * (the emitter only treats top-level decls as entry points; members named `rynek`
+     * are ordinary methods).
+     */
+    fun isEntryPoint(decl: Decl.FunDecl): Boolean =
+        decl.name == ENTRY_POINT_KRMELIN && decl.params.isEmpty()
 
     /** The Flakanci exception hierarchy (Plan.md §7), emitted by the runtime resource. */
     val FLAKANCI_TYPE_NAMES: Set<String> =

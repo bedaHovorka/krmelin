@@ -110,10 +110,7 @@ class KotlinEmitter(private val resolution: Resolution) {
             line("@Throws(${decl.throwsTypes.joinToString(", ") { "${renderType(it)}::class" }})")
         }
 
-        val isEntryPoint = topLevel &&
-            decl.name == KotlinPrelude.ENTRY_POINT_KRMELIN &&
-            decl.params.isEmpty() &&
-            decl.throwsTypes.isEmpty()
+        val isEntryPoint = topLevel && KotlinPrelude.isEntryPoint(decl)
         val name = if (isEntryPoint) KotlinPrelude.ENTRY_POINT_KOTLIN else decl.name
 
         val signature = buildString {
@@ -323,8 +320,45 @@ class KotlinEmitter(private val resolution: Resolution) {
         is Stmt.ThrowStmt -> "throw ${emitExpr(stmt.expr)}"
         is Stmt.BreakStmt -> "break"
         is Stmt.ContinueStmt -> "continue"
-        else -> error("lambda bodies support only flat statements, got ${stmt::class.simpleName}")
+        // Lambda block bodies carry full statements (ExprParser.parseLambda parses them
+        // in a loop), so control flow has to render too. Kotlin accepts these as
+        // single-line forms with `;`-separated bodies and nested braces, keeping the
+        // emitter's string-returning contract without multi-line emission.
+        is Stmt.IfStmt -> buildString {
+            append("if (${emitExpr(stmt.condition)}) ${braced(stmt.thenBlock)}")
+            for (e in stmt.elseIfs) append(" else if (${emitExpr(e.condition)}) ${braced(e.block)}")
+            if (stmt.elseBlock != null) append(" else ${braced(stmt.elseBlock)}")
+        }
+        is Stmt.WhileStmt -> "while (${emitExpr(stmt.condition)}) ${braced(stmt.body)}"
+        is Stmt.ForStmt -> "for (${stmt.name} in ${emitExpr(stmt.iterable)}) ${braced(stmt.body)}"
+        is Stmt.TryStmt -> buildString {
+            append("try ${braced(stmt.block)}")
+            for (c in stmt.catches) append(" catch (${renderParam(c.param, withMutability = false)}) ${braced(c.block)}")
+            if (stmt.finallyBlock != null) append(" finally ${braced(stmt.finallyBlock)}")
+        }
+        is Stmt.WhenStmt -> buildString {
+            if (stmt.subject != null) append("when (${emitExpr(stmt.subject)}) { ")
+            else append("when { ")
+            append(stmt.branches.joinToString("; ") { br ->
+                val conds = if (br.isElse) "else" else br.conditions.joinToString(", ") { emitExpr(it) }
+                val body = when (val b = br.body) {
+                    is krmelin.ast.WhenBody.ExprBody -> emitExpr(b.expr)
+                    is krmelin.ast.WhenBody.BlockBody -> "{ ${inlineBlock(b.block)} }"
+                }
+                "$conds -> $body"
+            })
+            append(" }")
+        }
+        is Stmt.Block -> braced(stmt)
     }
+
+    /** A block rendered as a `;`-joined single line — the inline form used inside lambdas. */
+    private fun inlineBlock(block: Stmt.Block): String =
+        block.statements.joinToString("; ") { renderInlineStmt(it) }
+
+    /** A block wrapped in braces, collapsed to `{}` when empty so spacing stays tidy. */
+    private fun braced(block: Stmt.Block): String =
+        inlineBlock(block).let { if (it.isEmpty()) "{}" else "{ $it }" }
 
     private fun escape(text: String): String = buildString {
         for (c in text) {

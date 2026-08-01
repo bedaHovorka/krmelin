@@ -84,4 +84,18 @@ class CompileCommandTest {
             assertTrue(jar.getEntry("demo/HelloKt.class") != null)
         }
     }
+
+    @Test
+    fun `jar on a file with no entry point fails with HAV401 and no jar`() {
+        val dir = tempDir()
+        val src = File(dir, "knihovna.krm")
+        src.writeText("robota pomoz(x: Cyslo) : Cyslo {\n    davaj x\n}\n")
+
+        val jarOut = File(dir, "knihovna.jar")
+        val result = CompileCommand().test(src.absolutePath, "-o", File(dir, "knihovna.kt").absolutePath, "--jar")
+
+        assertEquals(1, result.statusCode, result.output)
+        assertTrue("HAV401" in result.stderr, result.stderr)
+        assertTrue(!jarOut.exists(), "no jar should be produced without an entry point")
+    }
 }

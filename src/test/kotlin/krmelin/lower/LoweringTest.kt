@@ -136,6 +136,12 @@ class LoweringTest {
 
         val withThrows = lowered("robota f() rozdava MimoBarak {\n}\n")
         assertEquals(true, Lowering(withThrows.resolution).lower(withThrows.unit).usesFlakanci)
+
+        // A bare constructor/value reference (no throw, no try, no type annotation) must
+        // also trip the flag — otherwise the runtime import + Flakanci.kt are omitted and
+        // kotlinc fails on an unresolved name.
+        val withBareRef = lowered("robota rynek() {\n    toz e = Flakanec(\"x\")\n    zarvat(e.zprava)\n}\n")
+        assertEquals(true, Lowering(withBareRef.resolution).lower(withBareRef.unit).usesFlakanci)
     }
 
     // ── Identity preservation ──────────────────────────────────────────────
