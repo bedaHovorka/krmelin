@@ -43,11 +43,111 @@ class Resolver(private val reporter: DiagnosticReporter) {
     fun resolve(unit: Decl.CompilationUnit): Resolution {
         val fileScope = table.newFileScope()
         resolution = Resolution(fileScope)
+        validateAnnotations(unit)
         declareAll(unit.declarations, fileScope)
         // After the declarations, so a local `robota abs` wins over `privezt kotlin.math.abs`.
         declareImports(unit.imports, fileScope)
         for (decl in unit.declarations) bindDecl(decl, fileScope)
         return resolution
+    }
+
+    // ── PorubaUnit annotations (Plan.md §6) ──────────────────────────────────
+
+    /**
+     * Reports misplaced `@Sichta` / `@Parta` in source order, before the declare/bind
+     * passes run — a misplaced annotation fails loudly rather than being silently dropped
+     * from the test registry.
+     */
+    private fun validateAnnotations(unit: Decl.CompilationUnit) {
+        for (decl in unit.declarations) validateAnnotations(decl, topLevel = true)
+    }
+
+    private fun validateAnnotations(decl: Decl, topLevel: Boolean = false) {
+        when (decl) {
+            is Decl.PropertyDecl -> {
+                if (decl.annotations.contains("Sichta")) {
+                    reporter.error(
+                        DiagCode.SICHTA_NOT_ON_ROBOTA,
+                        "@Sichta slusi enem robote, zadny vlastnosti",
+                        decl.span,
+                        highlight = "@Sichta na vlastnosti nema vyznam",
+                        fix = "ubal to do roboty: '@Sichta robota ${decl.name}_sichta() { ... }'",
+                    )
+                }
+                if (decl.annotations.contains("Parta")) reportPartaMisplaced(decl.span, "vlastnost")
+            }
+            is Decl.FunDecl -> {
+                if (decl.isTest) validateSichtaFun(decl, topLevel)
+                if (decl.annotations.contains("Parta")) reportPartaMisplaced(decl.span, "robota")
+            }
+            is Decl.ClassDecl -> {
+                if (decl.isParta && (decl.isObject || decl.isInterface)) {
+                    reportPartaMisplaced(decl.span, if (decl.isObject) "jedynak" else "predpis")
+                }
+                val memberTests = decl.members.filterIsInstance<Decl.FunDecl>().filter { it.isTest }
+                if (decl.isParta && memberTests.isNotEmpty() &&
+                    decl.params.any { it.defaultValue == null }
+                ) {
+                    reporter.error(
+                        DiagCode.PARTA_CTOR_PARAM_REQUIRED,
+                        "parta '${decl.name}' so sichtami se musi zalozit bez argumentu",
+                        decl.span,
+                        highlight = "konstruktor tu bere povinny parametr",
+                        fix = "dej parametrum vychozi hodnoty — PorubaUnit zaklada party jako ${decl.name}()",
+                    )
+                }
+                if (!decl.isParta) {
+                    for (test in memberTests) {
+                        reporter.warning(
+                            DiagCode.SICHTA_OUTSIDE_PARTA,
+                            "sichta '${test.name}' v ${decl.name} bez @Parta se nikdy nespusti",
+                            test.span,
+                            highlight = "tuhle robotu PorubaUnit nenajde",
+                            fix = "dej @Parta na trydu '${decl.name}', abo vytahni sichtu na uroven suboru",
+                        )
+                    }
+                }
+                for (member in decl.members) validateAnnotations(member, topLevel = false)
+            }
+            else -> Unit
+        }
+    }
+
+    private fun reportPartaMisplaced(span: SourceSpan, co: String) {
+        reporter.error(
+            DiagCode.PARTA_NOT_ON_TRYDA,
+            "@Parta slusi enem tryde, zadny $co",
+            span,
+            highlight = "@Parta tu nema vyznam",
+            fix = "dej @Parta na trydu, ktera seskupuje @Sichta roboty",
+        )
+    }
+
+    private fun validateSichtaFun(decl: Decl.FunDecl, topLevel: Boolean) {
+        // `rynek` is the program entry point only as a top-level function; a member named
+        // `rynek` is an ordinary method (Prelude.isEntryPoint is consulted for top-level decls
+        // only), so a `@Parta` member test named `rynek` is fine and must not trip HAV232.
+        if (topLevel && decl.name == "rynek") {
+            reporter.error(
+                DiagCode.SICHTA_ON_RYNEK,
+                "rynek je zavedec programu, zadna sichta z neho nebude",
+                decl.span,
+                highlight = "rynek zadnou anotaci nechce",
+                fix = "odeber @Sichta — abo prejmenuj roboutu, kaj ma byt test",
+            )
+            return
+        }
+        if (decl.params.isNotEmpty() || decl.body == null) {
+            val reason =
+                if (decl.body == null) "nema telo" else "ma parametry"
+            reporter.error(
+                DiagCode.SICHTA_WITH_PARAMS,
+                "sichta '${decl.name}' se neda spustit: $reason",
+                decl.span,
+                highlight = "takovy robote PorubaUnit nezavola",
+                fix = "testova robota musi byt bez parametru a s telem: '@Sichta robota ${decl.name}() { ... }'",
+            )
+        }
     }
 
     // ── Declaration pass ─────────────────────────────────────────────────────

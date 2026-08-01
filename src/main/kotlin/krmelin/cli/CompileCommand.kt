@@ -53,7 +53,7 @@ class CompileCommand : CliktCommand(
                 // The emitted .kt carries `import krmelin.runtime.*`, so without the runtime
                 // source beside it the primary output of the primary command cannot be compiled
                 // by hand. `--jar` builds it into the jar instead and needs no stray copy.
-                if (outcome.usesFlakanci && !jar) writeRuntimeBeside(ktFile)
+                if (!jar) for (name in runtimeFileNames(outcome)) writeRuntimeBeside(ktFile, name)
                 if (jar) buildJar(outcome, ktFile)
             }
         }
@@ -64,22 +64,23 @@ class CompileCommand : CliktCommand(
     }
 
     /**
-     * Writes `Flakanci.kt` next to the emitted `.kt` so the pair compiles standalone.
+     * Writes the runtime source named [fileName] (`Flakanci.kt` / `PorubaUnit.kt`) next to
+     * the emitted `.kt` so the pair compiles standalone.
      *
      * Never overwrites: an existing file with different bytes is reported and left alone —
      * it may well be the user's own program, e.g. when compiling `Flakanci.krm`.
      */
-    private fun writeRuntimeBeside(ktFile: File) {
+    private fun writeRuntimeBeside(ktFile: File, fileName: String) {
         val dir = ktFile.absoluteFile.parentFile ?: File(".")
-        val target = File(dir, "Flakanci.kt")
-        val runtime = KotlinBackend.flakanciSource()
+        val target = File(dir, fileName)
+        val runtime = runtimeSource(fileName)
         if (target.exists() && target.readText() != runtime) {
             echo(
                 CompilePipeline.renderStandalone(
                     Diagnostic(
                         Severity.WARNING,
                         DiagCode.RUNTIME_NOT_WRITTEN,
-                        "'${target.path}' uz existuje a je iny — runtime Flakanci sem nezapisuju",
+                        "'${target.path}' uz existuje a je iny — runtime $fileName sem nezapisuju",
                         SourceSpan.NONE,
                         fix = "prelozte s '-o' do jineho adresare, abo si ten subor odloz stranou",
                     ),
@@ -120,8 +121,10 @@ class CompileCommand : CliktCommand(
             val sources = mutableListOf(ktFile)
             // Subdirectory, so a `-o` target that happens to be named Flakanci.kt is not the
             // same path the runtime extraction writes to. See RunCommand for the same guard.
-            if (outcome.usesFlakanci) {
-                sources += KotlinBackend.extractFlakanci(File(workDir, "runtime").apply { mkdirs() })
+            if (outcome.usesFlakanci || outcome.usesPorubaUnit) {
+                val runtimeDir = File(workDir, "runtime").apply { mkdirs() }
+                sources += KotlinBackend.extractFlakanci(runtimeDir)
+                if (outcome.usesPorubaUnit) sources += KotlinBackend.extractPorubaUnit(runtimeDir)
             }
 
             val classesDir = File(workDir, "classes")
@@ -160,6 +163,23 @@ class CompileCommand : CliktCommand(
 }
 
 internal fun String.withKtExtension(): String = removeSuffix(".krm") + ".kt"
+
+/**
+ * The runtime sources the emitted program needs, in write order. PorubaUnit always drags
+ * Flakanci along — it classifies `Flakanec` throwables for error reporting, so its source
+ * does not compile alone.
+ */
+internal fun runtimeFileNames(outcome: CompilePipeline.Outcome.Success): List<String> = buildList {
+    if (outcome.usesFlakanci || outcome.usesPorubaUnit) add("Flakanci.kt")
+    if (outcome.usesPorubaUnit) add("PorubaUnit.kt")
+}
+
+/** Runtime source text by shipped file name. */
+internal fun runtimeSource(fileName: String): String = when (fileName) {
+    "Flakanci.kt" -> KotlinBackend.flakanciSource()
+    "PorubaUnit.kt" -> KotlinBackend.porubaUnitSource()
+    else -> error("no runtime source named $fileName")
+}
 
 /**
  * Packages [classesDir] into a runnable jar.

@@ -66,11 +66,13 @@ class RunCommand : CliktCommand(
             val ktFile = File(workDir, "${File(file).nameWithoutExtension}.kt")
             ktFile.writeText(outcome.kt)
             val sources = mutableListOf(ktFile)
-            // Into a subdirectory, not next to the program: extractFlakanci always writes
-            // `Flakanci.kt`, which would otherwise overwrite a user program named Flakanci.krm.
+            // Into a subdirectory, not next to the program: extraction always writes fixed
+            // file names, which would otherwise overwrite a user program named e.g. Flakanci.krm.
             // kotlinc takes free-form source paths, so the layout is invisible to it.
-            if (outcome.usesFlakanci) {
-                sources += KotlinBackend.extractFlakanci(File(workDir, "runtime").apply { mkdirs() })
+            if (outcome.usesFlakanci || outcome.usesPorubaUnit) {
+                val runtimeDir = File(workDir, "runtime").apply { mkdirs() }
+                sources += KotlinBackend.extractFlakanci(runtimeDir)
+                if (outcome.usesPorubaUnit) sources += KotlinBackend.extractPorubaUnit(runtimeDir)
             }
 
             val classesDir = File(workDir, "classes")

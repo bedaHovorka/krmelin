@@ -1,0 +1,3 @@
+@Sichta robota ma_dostat_s_zpravou_sedi() {
+    ma_dostat("mel flakanec") { dostanes DelenoNulou("bum") }
+}

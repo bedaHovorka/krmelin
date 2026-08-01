@@ -9,7 +9,9 @@ import krmelin.ast.TemplatePart
 import krmelin.ast.TypeNode
 import krmelin.ast.WhenBody
 import krmelin.codegen.KotlinPrelude
+import krmelin.resolve.Prelude
 import krmelin.resolve.Resolution
+import krmelin.resolve.Symbol
 import krmelin.types.KType
 
 /**
@@ -39,13 +41,35 @@ class Lowering(private val resolution: Resolution) {
     data class Lowered(
         val unit: Decl.CompilationUnit,
         val usesFlakanci: Boolean,
+        val usesPorubaUnit: Boolean,
     )
 
     fun lower(unit: Decl.CompilationUnit): Lowered =
         Lowered(
             unit = transformUnit(unit),
             usesFlakanci = usesFlakanci(unit),
+            usesPorubaUnit = usesPorubaUnit(unit),
         )
+
+    /**
+     * Whether the unit touches PorubaUnit at all — a `@Sichta`/`@Parta` declaration, or a
+     * call bound to a prelude assertion robota (`decl == null`; a user robota that merely
+     * shares the name stays invisible here). Gates the runtime import and extraction.
+     */
+    private fun usesPorubaUnit(unit: Decl.CompilationUnit): Boolean {
+        fun touches(decls: List<Decl>): Boolean = decls.any { decl ->
+            when (decl) {
+                is Decl.FunDecl -> decl.isTest || decl.annotations.contains("Parta")
+                is Decl.ClassDecl -> decl.isParta || decl.annotations.contains("Sichta") || touches(decl.members)
+                is Decl.PropertyDecl -> decl.annotations.isNotEmpty()
+                else -> false
+            }
+        }
+        if (touches(unit.declarations)) return true
+        return resolution.bindings.values.any {
+            it is Symbol.Function && it.decl == null && it.name in Prelude.ASSERTION_NAMES
+        }
+    }
 
     // ── Flakanci usage detection ───────────────────────────────────────────
 

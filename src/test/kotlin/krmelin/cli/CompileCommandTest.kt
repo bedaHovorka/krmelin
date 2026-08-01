@@ -143,6 +143,21 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `compiling a porubaunit program writes both runtime sources beside the output`() {
+        val dir = tempDir()
+        val result = CompileCommand().test(
+            "tests/golden/porubaunit.krm",
+            "-o", File(dir, "porubaunit.kt").absolutePath,
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        val runtime = File(dir, "PorubaUnit.kt")
+        assertTrue(runtime.exists(), "PorubaUnit.kt should be written beside the output")
+        assertTrue("package krmelin.runtime" in runtime.readText(), runtime.readText())
+        assertTrue(File(dir, "Flakanci.kt").exists(), "PorubaUnit classifies Flakanci — it always travels along")
+    }
+
+    @Test
     fun `an existing different Flakanci kt is not overwritten`() {
         val dir = tempDir()
         val squatter = File(dir, "Flakanci.kt")

@@ -1,0 +1,4 @@
+@Sichta robota delka_chuj_vraci_nulu() {
+    toz dylka = "abc".dylka
+    musi_byt(dylka, 0)
+}
