@@ -67,7 +67,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
             }
             if (declNode != null) resolution.declarations[declNode] = symbol
             val existing = members.putIfAbsent(symbol.name, symbol) ?: classScope.declare(symbol)
-            if (existing != null) reportDuplicate(symbol)
+            if (existing != null) reportDuplicate(symbol, existing)
         }
         // Constructor params double as immutable/mutable members (zapisnik/tryda).
         for (param in decl.params) addMember(paramSymbol(param, scope))

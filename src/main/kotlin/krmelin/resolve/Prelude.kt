@@ -50,7 +50,7 @@ object Prelude {
                 "odkud" to prop("odkud", DRYST.nullable()),
                 "naDryst" to naDryst(),
             ),
-            constructor = fn(name, listOf(ParamSig("zprava", DRYST)), null),
+            constructor = fn(name, listOf(ParamSig("zprava", DRYST)), type),
         )
     }
 

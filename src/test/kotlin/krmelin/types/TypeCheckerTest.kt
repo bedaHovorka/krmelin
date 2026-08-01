@@ -64,11 +64,10 @@ class TypeCheckerTest {
     }
 
     @Test
-    fun `unknown-typed conditions stay quiet`() {
-        // Lambda results are UNKNOWN to the checker (deferred to kotlinc) — no false positive.
+    fun `naDryst-returning condition is flagged as non-Bul`() {
+        // naDryst() returns Dryst — a known non-Bul — so the condition is a real HAV331.
         val source = "robota rynek(f: Dryst) {\n    kaj (f.naDryst()) {\n    }\n}"
         val analyzed = TestSupport.analyze(source)
-        // naDryst returns Dryst, so this IS an error — a known non-Bul.
         TestSupport.expectDiag(analyzed.reporter, DiagCode.CONDITION_NOT_BUL)
     }
 
@@ -215,6 +214,16 @@ class TypeCheckerTest {
         TestSupport.expectDiag(bad.reporter, DiagCode.TYPE_MISMATCH)
         val good = TestSupport.analyze("toz s: Dryst? = chuj")
         assertFalse(good.reporter.hasErrors, good.reporter.render())
+    }
+
+    @Test
+    fun `an exception constructor call infers the exception type, not Unit`() {
+        // `Flakanec("…")` must infer as Flakanec. The prelude constructor previously carried a
+        // null return type, so the call came out as Nic/Unit and assigning it to a Flakanec
+        // target false-positived as HAV300.
+        val source = "toz e: Flakanec = Flakanec(\"au\")"
+        val analyzed = TestSupport.analyze(source)
+        assertFalse(analyzed.reporter.hasErrors, analyzed.reporter.render())
     }
 
     // ── class member identity ───────────────────────────────────────────────
