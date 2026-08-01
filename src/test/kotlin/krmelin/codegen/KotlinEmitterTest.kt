@@ -314,21 +314,25 @@ class KotlinEmitterTest {
                         zdybat
                     }
                 }
+            }
+
+            robota projdi(pole: Halda<Cyslo>) {
                 prokazdy (x v pole) {
                     zarvat(x)
                 }
             }
-            """.trimIndent().let { "toz pole: Halda<Cyslo>\n\n$it" },
+            """.trimIndent(),
         )
         assertEquals(
-            "val pole: List<Int>\n\n" +
-                "fun main() {\n" +
+            "fun main() {\n" +
                 "    var i = 0\n" +
                 "    while (i < 10) {\n" +
                 "        i = i + 1\n" +
                 "        if (i == 3) {\n            continue\n        }\n" +
                 "        if (i == 8) {\n            break\n        }\n" +
                 "    }\n" +
+                "}\n\n" +
+                "fun projdi(pole: List<Int>) {\n" +
                 "    for (x in pole) {\n        println(x)\n    }\n" +
                 "}\n",
             kt,
@@ -525,16 +529,21 @@ class KotlinEmitterTest {
 
     @Test
     fun `lambda with expression body`() {
+        // In argument position, where the callee supplies the expected type kotlinc needs to
+        // infer the parameter from — the only place Krmelin can put a parameterized lambda.
         val kt = transpile(
             """
+            privezt kotlin.collections.*
+
             robota rynek() {
-                toz dvakrat = { x -> x * 2 }
-                zarvat(dvakrat(21))
+                toz pole = listOf(1, 2, 3)
+                zarvat(pole.map({ x -> x * 2 }))
             }
             """.trimIndent(),
         )
         assertEquals(
-            "fun main() {\n    val dvakrat = { x -> x * 2 }\n    println(dvakrat(21))\n}\n",
+            "import kotlin.collections.*\n\n" +
+                "fun main() {\n    val pole = listOf(1, 2, 3)\n    println(pole.map({ x -> x * 2 }))\n}\n",
             kt,
         )
     }
@@ -589,7 +598,7 @@ class KotlinEmitterTest {
     fun `lambda block body renders if else-if while and for inline`() {
         val kt = transpile(
             """
-            robota rynek() {
+            robota lambdy(pole: Halda<Cyslo>) {
                 mozej x = 0
                 toz a = { kaj (x < 0) {
                     zarvat("m")
@@ -603,11 +612,10 @@ class KotlinEmitterTest {
                     zarvat(y)
                 } }
             }
-            """.trimIndent().let { "toz pole: Halda<Cyslo>\n\n$it" },
+            """.trimIndent(),
         )
         assertEquals(
-            "val pole: List<Int>\n\n" +
-                "fun main() {\n" +
+            "fun lambdy(pole: List<Int>) {\n" +
                 "    var x = 0\n" +
                 "    val a = { if (x < 0) { println(\"m\") } else if (x == 0) { println(\"n\") } else { println(\"p\") } }\n" +
                 "    val b = { while (true) {} }\n" +

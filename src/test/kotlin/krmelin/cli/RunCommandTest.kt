@@ -52,4 +52,25 @@ class RunCommandTest {
     fun `missing input file exits 2`() {
         assertEquals(2, RunCommand().test("neexistuje.krm").statusCode)
     }
+
+    @Test
+    fun `a program named Flakanci is not overwritten by the extracted runtime`() {
+        // The runtime source is always called Flakanci.kt; extracting it into the same work
+        // directory as the emitted program clobbered a user file of that name, and `run` then
+        // died on a main class that no longer existed.
+        val src = File(tempDir(), "Flakanci.krm")
+        src.writeText(
+            "robota rynek() {\n" +
+                "    pultik {\n" +
+                "        dostanes MimoBarak(\"ven\")\n" +
+                "    } bitka (f: Flakanec) {\n" +
+                "        zarvat(\"chyceno\")\n" +
+                "    }\n" +
+                "}\n",
+        )
+
+        val result = RunCommand().test(src.absolutePath)
+
+        assertEquals(0, result.statusCode, result.output)
+    }
 }

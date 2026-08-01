@@ -38,10 +38,34 @@ object KotlinBackend {
      * compiled alongside the emitted `.kt`. Returns the written file.
      */
     fun extractFlakanci(destDir: File): File {
-        val stream = javaClass.classLoader.getResourceAsStream(FLAKANCI_RESOURCE)
-            ?: error("$FLAKANCI_RESOURCE missing from the jar — compiler packaging is broken")
         val target = File(destDir, "Flakanci.kt")
-        stream.use { target.writeBytes(it.readBytes()) }
+        target.writeText(flakanciSource())
         return target
     }
+
+    /** The Flakanci runtime source as text, for callers that place it themselves. */
+    fun flakanciSource(): String =
+        javaClass.classLoader.getResourceAsStream(FLAKANCI_RESOURCE)
+            ?.use { it.readBytes().decodeToString() }
+            ?: error("$FLAKANCI_RESOURCE missing from the jar — compiler packaging is broken")
+
+    /**
+     * The jar holding the Kotlin standard library, for bundling into a `--jar` build.
+     *
+     * Prefers a real `kotlin-stdlib-*.jar` on the classpath (a Gradle run has one, and it is
+     * exactly the stdlib). Falls back to whatever jar `kotlin.Unit` was loaded from — our own
+     * shadow fat jar when running as `java -jar`, where the stdlib is shaded in and the caller
+     * filters it back out by entry name. `null` when neither is a jar (e.g. loose class dirs).
+     */
+    fun stdlibJar(): File? {
+        val onClasspath = System.getProperty("java.class.path").orEmpty()
+            .split(File.pathSeparator)
+            .map(::File)
+            .firstOrNull { it.isFile && STDLIB_JAR_NAME.matches(it.name) }
+        if (onClasspath != null) return onClasspath
+        val location = Unit::class.java.protectionDomain?.codeSource?.location ?: return null
+        return runCatching { File(location.toURI()) }.getOrNull()?.takeIf { it.isFile }
+    }
+
+    private val STDLIB_JAR_NAME = Regex("""^kotlin-stdlib(-[\d.]+)?\.jar$""")
 }

@@ -29,10 +29,42 @@ class KotlinEmitter(private val resolution: Resolution) {
     private val out = StringBuilder()
     private var indent = 0
 
+    /**
+     * The entry point's *symbol*, so declaration and references agree on the rename to `main`.
+     *
+     * Symbol identity, not decl identity: [Lowering] rebuilds every `FunDecl` through `copy(...)`,
+     * so the decls reaching the emitter are not the ones `Symbol.Function.decl` points at. It also
+     * scopes the rename correctly — a `rynek` declared inside a `tryda` lives in the class scope
+     * and so is never this symbol.
+     */
+    private var entrySymbol: Symbol.Function? = null
+
+    /**
+     * Kotlin names the unit's own declarations occupy. A prelude print whose Kotlin name collides
+     * with one of them must be emitted fully qualified or the user's declaration captures the call.
+     */
+    private var declaredNames: Set<String> = emptySet()
+
     fun emit(lowered: Lowering.Lowered): String {
         out.clear()
         indent = 0
         val unit = lowered.unit
+        entrySymbol = (resolution.fileScope.lookup(KotlinPrelude.ENTRY_POINT_KRMELIN) as? Symbol.Function)
+            ?.takeIf { it.decl?.let(KotlinPrelude::isEntryPoint) == true }
+        declaredNames = buildSet {
+            fun collect(decls: List<Decl>, topLevel: Boolean) {
+                for (decl in decls) when (decl) {
+                    // Members capture too: a `fun println` in a class body beats the default
+                    // import inside that body.
+                    is Decl.FunDecl ->
+                        add(if (topLevel && KotlinPrelude.isEntryPoint(decl)) KotlinPrelude.ENTRY_POINT_KOTLIN else decl.name)
+                    is Decl.ClassDecl -> { add(decl.name); collect(decl.members, topLevel = false) }
+                    is Decl.PropertyDecl -> add(decl.name)
+                    else -> Unit
+                }
+            }
+            collect(unit.declarations, topLevel = true)
+        }
 
         unit.packageDecl?.let {
             line("package ${it.name.joinToString(".")}")
@@ -83,7 +115,7 @@ class KotlinEmitter(private val resolution: Resolution) {
     internal fun renderType(type: TypeNode): String = when (type) {
         is TypeNode.NamedType -> buildString {
             val symbol = resolution.fileScope.lookup(type.name)
-            append(if (symbol is Symbol.TypeName) symbol.type.kotlinName else type.name)
+            append(KotlinPrelude.escapeIdent(if (symbol is Symbol.TypeName) symbol.type.kotlinName else type.name))
             if (type.typeArgs.isNotEmpty()) {
                 type.typeArgs.joinTo(this, ", ", "<", ">") { renderType(it) }
             }
@@ -111,7 +143,7 @@ class KotlinEmitter(private val resolution: Resolution) {
         }
 
         val isEntryPoint = topLevel && KotlinPrelude.isEntryPoint(decl)
-        val name = if (isEntryPoint) KotlinPrelude.ENTRY_POINT_KOTLIN else decl.name
+        val name = if (isEntryPoint) KotlinPrelude.ENTRY_POINT_KOTLIN else KotlinPrelude.escapeIdent(decl.name)
 
         val signature = buildString {
             append("fun ").append(name).append('(')
@@ -139,7 +171,7 @@ class KotlinEmitter(private val resolution: Resolution) {
             else -> "class"
         }
         val header = buildString {
-            append(kind).append(' ').append(decl.name)
+            append(kind).append(' ').append(KotlinPrelude.escapeIdent(decl.name))
             if (!decl.isObject && !decl.isInterface) {
                 decl.params.joinTo(this, ", ", "(", ")") { renderParam(it, withMutability = true) }
             }
@@ -155,12 +187,12 @@ class KotlinEmitter(private val resolution: Resolution) {
 
     private fun renderParam(param: Decl.Param, withMutability: Boolean): String = buildString {
         if (withMutability) append(if (param.isMutable) "var " else "val ")
-        append(param.name).append(": ").append(renderType(param.type))
+        append(KotlinPrelude.escapeIdent(param.name)).append(": ").append(renderType(param.type))
         param.defaultValue?.let { append(" = ").append(emitExpr(it)) }
     }
 
     private fun renderProperty(decl: Decl.PropertyDecl): String = buildString {
-        append(if (decl.isMutable) "var " else "val ").append(decl.name)
+        append(if (decl.isMutable) "var " else "val ").append(KotlinPrelude.escapeIdent(decl.name))
         decl.type?.let { append(": ").append(renderType(it)) }
         decl.initializer?.let { append(" = ").append(emitExpr(it)) }
     }
@@ -185,7 +217,7 @@ class KotlinEmitter(private val resolution: Resolution) {
                 line("}")
             }
             is Stmt.ForStmt -> {
-                line("for (${stmt.name} in ${emitExpr(stmt.iterable)}) {")
+                line("for (${KotlinPrelude.escapeIdent(stmt.name)} in ${emitExpr(stmt.iterable)}) {")
                 nest { emitBlock(stmt.body) }
                 line("}")
             }
@@ -216,11 +248,7 @@ class KotlinEmitter(private val resolution: Resolution) {
         line(header)
         nest {
             for (branch in stmt.branches) {
-                val conditions = if (branch.isElse) {
-                    "else"
-                } else {
-                    branch.conditions.joinToString(", ") { emitExpr(it) }
-                }
+                val conditions = if (branch.isElse) "else" else joinConditions(branch, stmt.subject)
                 when (val body = branch.body) {
                     is krmelin.ast.WhenBody.ExprBody -> line("$conditions -> ${emitExpr(body.expr)}")
                     is krmelin.ast.WhenBody.BlockBody -> {
@@ -233,6 +261,14 @@ class KotlinEmitter(private val resolution: Resolution) {
         }
         line("}")
     }
+
+    /**
+     * A branch's conditions. Kotlin allows the comma list only in a `when` *with* a subject;
+     * without one the conditions are plain `Bul` expressions (the checker enforces that) and
+     * `||` is the equivalent — and needs no parens, being the loosest operator in play.
+     */
+    private fun joinConditions(branch: Stmt.WhenBranch, subject: Expr?): String =
+        branch.conditions.joinToString(if (subject != null) ", " else " || ") { emitExpr(it) }
 
     private fun emitTry(stmt: Stmt.TryStmt) {
         line("try {")
@@ -261,21 +297,29 @@ class KotlinEmitter(private val resolution: Resolution) {
         is Expr.BinaryExpr -> "${emitExpr(expr.left)} ${BINARY_OPS[expr.op]} ${emitExpr(expr.right)}"
         is Expr.UnaryExpr -> "${UNARY_OPS[expr.op]}${emitParenthized(expr.operand)}"
         is Expr.CallExpr -> "${emitExpr(expr.callee)}(${expr.args.joinToString(", ") { emitExpr(it) }})"
-        is Expr.MemberExpr -> "${emitExpr(expr.receiver)}.${expr.name}"
-        is Expr.SafeMemberExpr -> "${emitExpr(expr.receiver)}?.${expr.name}"
+        is Expr.MemberExpr -> "${emitExpr(expr.receiver)}.${KotlinPrelude.escapeIdent(expr.name)}"
+        is Expr.SafeMemberExpr -> "${emitExpr(expr.receiver)}?.${KotlinPrelude.escapeIdent(expr.name)}"
         is Expr.ElvisExpr -> "${emitExpr(expr.left)} ?: ${emitExpr(expr.right)}"
         is Expr.AssignExpr -> "${emitExpr(expr.target)} = ${emitExpr(expr.value)}"
         is Expr.LambdaExpr -> emitLambda(expr)
         is Expr.ParenExpr -> "(${emitExpr(expr.expr)})"
     }
 
-    /** Renames prelude `pravit`/`zarvat` — only when the binding is the prelude itself. */
+    /**
+     * A name reference in its Kotlin spelling: the entry point renamed, prelude prints renamed
+     * (and qualified when a user declaration would capture them), everything else escaped.
+     */
     private fun emitName(expr: Expr.NameExpr): String {
         val symbol = resolution.bindings[expr]
+        if (symbol != null && symbol === entrySymbol) return KotlinPrelude.ENTRY_POINT_KOTLIN
         if (symbol is Symbol.Function && symbol.decl == null) {
-            KotlinPrelude.PRINT_FUNCTION_NAMES[expr.name]?.let { return it }
+            KotlinPrelude.PRINT_FUNCTION_NAMES[expr.name]?.let { kotlinName ->
+                // The user declared something that emits under this name, so a bare call would
+                // resolve to theirs instead of kotlin.io's.
+                return if (kotlinName in declaredNames) KotlinPrelude.qualifiedPrint(kotlinName) else kotlinName
+            }
         }
-        return expr.name
+        return KotlinPrelude.escapeIdent(expr.name)
     }
 
     /** Unary operators parenthesize composite operands so `-a * b` cannot misbind. */
@@ -287,24 +331,46 @@ class KotlinEmitter(private val resolution: Resolution) {
         else -> "(${emitExpr(operand)})"
     }
 
+    /**
+     * A string template. The parser collapses `$x` and `${x}` into the same
+     * `Interpolation(NameExpr)`, so the short form is only safe when re-lexing it in Kotlin
+     * cannot swallow what follows: `"${a}b"` emitted as `"$ab"` reads a *different* variable.
+     */
     private fun emitTemplate(expr: Expr.StringTemplate): String = buildString {
         append('"')
-        for (part in expr.parts) {
+        expr.parts.forEachIndexed { index, part ->
             when (part) {
                 is krmelin.ast.TemplatePart.Text -> append(escape(part.text))
                 is krmelin.ast.TemplatePart.Interpolation -> {
-                    // `$name` in source arrives as Interpolation(NameExpr); keep the short form.
-                    if (part.expr is Expr.NameExpr) append("$").append((part.expr as Expr.NameExpr).name)
-                    else append("\${").append(emitExpr(part.expr)).append('}')
+                    val name = (part.expr as? Expr.NameExpr)?.name
+                    if (name != null && canUseShortInterpolation(name, expr.parts.getOrNull(index + 1))) {
+                        append('$').append(name)
+                    } else {
+                        append("\${").append(emitExpr(part.expr)).append('}')
+                    }
                 }
             }
         }
         append('"')
     }
 
+    /**
+     * Whether `$name` can be written without braces here. A following `$…` or a literal `$`
+     * (which [escape] turns into `\$`) both terminate the name; an identifier character does not.
+     * A hard keyword always needs braces — `"$when"` is not valid Kotlin.
+     */
+    private fun canUseShortInterpolation(name: String, next: krmelin.ast.TemplatePart?): Boolean {
+        if (name in KotlinPrelude.KOTLIN_HARD_KEYWORDS) return false
+        val text = (next as? krmelin.ast.TemplatePart.Text)?.text ?: return true
+        val first = text.firstOrNull() ?: return true
+        return !(first.isLetterOrDigit() || first == '_')
+    }
+
     private fun emitLambda(expr: Expr.LambdaExpr): String = buildString {
         append("{ ")
-        if (expr.params.isNotEmpty()) append(expr.params.joinToString(", ")).append(" -> ")
+        if (expr.params.isNotEmpty()) {
+            append(expr.params.joinToString(", ") { KotlinPrelude.escapeIdent(it) }).append(" -> ")
+        }
         when (val body = expr.body) {
             is krmelin.ast.LambdaBody.ExprBody -> append(emitExpr(body.expr))
             is krmelin.ast.LambdaBody.BlockBody ->
@@ -330,7 +396,7 @@ class KotlinEmitter(private val resolution: Resolution) {
             if (stmt.elseBlock != null) append(" else ${braced(stmt.elseBlock)}")
         }
         is Stmt.WhileStmt -> "while (${emitExpr(stmt.condition)}) ${braced(stmt.body)}"
-        is Stmt.ForStmt -> "for (${stmt.name} in ${emitExpr(stmt.iterable)}) ${braced(stmt.body)}"
+        is Stmt.ForStmt -> "for (${KotlinPrelude.escapeIdent(stmt.name)} in ${emitExpr(stmt.iterable)}) ${braced(stmt.body)}"
         is Stmt.TryStmt -> buildString {
             append("try ${braced(stmt.block)}")
             for (c in stmt.catches) append(" catch (${renderParam(c.param, withMutability = false)}) ${braced(c.block)}")
@@ -340,7 +406,7 @@ class KotlinEmitter(private val resolution: Resolution) {
             if (stmt.subject != null) append("when (${emitExpr(stmt.subject)}) { ")
             else append("when { ")
             append(stmt.branches.joinToString("; ") { br ->
-                val conds = if (br.isElse) "else" else br.conditions.joinToString(", ") { emitExpr(it) }
+                val conds = if (br.isElse) "else" else joinConditions(br, stmt.subject)
                 val body = when (val b = br.body) {
                     is krmelin.ast.WhenBody.ExprBody -> emitExpr(b.expr)
                     is krmelin.ast.WhenBody.BlockBody -> "{ ${inlineBlock(b.block)} }"

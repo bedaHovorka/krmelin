@@ -86,6 +86,79 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `jar main class follows the output file name, not the source name`() {
+        // kotlinc derives the facade from the file it was handed, so with `-o jine.kt` the
+        // .krm base name would put a class in the manifest that is not in the jar.
+        val dir = tempDir()
+        val result = CompileCommand().test(
+            "tests/golden/hello.krm",
+            "-o", File(dir, "jine.kt").absolutePath,
+            "--jar",
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        JarFile(File(dir, "jine.jar")).use { jar ->
+            assertEquals("demo.JineKt", jar.manifest.mainAttributes.getValue("Main-Class"))
+            assertTrue(jar.getEntry("demo/JineKt.class") != null, "facade class missing from the jar")
+        }
+    }
+
+    @Test
+    fun `the produced jar bundles the stdlib and actually runs`() {
+        val dir = tempDir()
+        val jarOut = File(dir, "hello.jar")
+        val result = CompileCommand().test(
+            "tests/golden/hello.krm",
+            "-o", File(dir, "hello.kt").absolutePath,
+            "--jar",
+        )
+        assertEquals(0, result.statusCode, result.output)
+
+        JarFile(jarOut).use { jar ->
+            assertTrue(jar.getEntry("kotlin/jvm/internal/Intrinsics.class") != null, "stdlib not bundled")
+        }
+
+        val process = ProcessBuilder("java", "-jar", jarOut.absolutePath)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        assertEquals(0, process.waitFor(), output)
+        assertEquals("Toz vitaj, Krmelin!", output.trim())
+    }
+
+    @Test
+    fun `compiling a flakanci program writes the runtime source beside the output`() {
+        // The emitted .kt carries `import krmelin.runtime.*`; without Flakanci.kt next to it
+        // the primary output of the primary command cannot be compiled by hand.
+        val dir = tempDir()
+        val result = CompileCommand().test(
+            "tests/golden/exceptions.krm",
+            "-o", File(dir, "exceptions.kt").absolutePath,
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        val runtime = File(dir, "Flakanci.kt")
+        assertTrue(runtime.exists(), "Flakanci.kt should be written beside the output")
+        assertTrue("package krmelin.runtime" in runtime.readText(), runtime.readText())
+    }
+
+    @Test
+    fun `an existing different Flakanci kt is not overwritten`() {
+        val dir = tempDir()
+        val squatter = File(dir, "Flakanci.kt")
+        squatter.writeText("// moje vlastni\n")
+
+        val result = CompileCommand().test(
+            "tests/golden/exceptions.krm",
+            "-o", File(dir, "exceptions.kt").absolutePath,
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        assertEquals("// moje vlastni\n", squatter.readText())
+        assertTrue("HAV411" in result.stderr, result.stderr)
+    }
+
+    @Test
     fun `jar on a file with no entry point fails with HAV401 and no jar`() {
         val dir = tempDir()
         val src = File(dir, "knihovna.krm")

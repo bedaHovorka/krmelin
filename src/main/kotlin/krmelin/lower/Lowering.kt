@@ -217,19 +217,12 @@ class Lowering(private val resolution: Resolution) {
             e.copy(receiver = transformExpr(e.receiver), name = dylkaTarget(e)?.let { it } ?: e.name)
         is Expr.SafeMemberExpr ->
             e.copy(receiver = transformExpr(e.receiver), name = dylkaTarget(e)?.let { it } ?: e.name)
-        is Expr.CallExpr -> when {
-            // `x.naDryst()` → `x.toString()` for prelude-known receivers only.
-            e.callee is Expr.MemberExpr &&
-                e.callee.name == KotlinPrelude.STRINGIFY_MEMBER &&
-                isPreludeKnown(resolution.typeOf(e.callee.receiver)) ->
-                e.copy(
-                    callee = e.callee.copy(
-                        receiver = transformExpr(e.callee.receiver),
-                        name = KotlinPrelude.TO_STRING_MEMBER,
-                    ),
-                    args = e.args.map(::transformExpr),
-                )
-            else -> e.copy(callee = transformExpr(e.callee), args = e.args.map(::transformExpr))
+        // `x.naDryst()` / `x?.naDryst()` → `toString()` for prelude-known receivers only.
+        // The safe-call shape matters: nullable receivers are exactly where `?.` is required,
+        // and the checker resolves the prelude member for both.
+        is Expr.CallExpr -> when (val stringified = stringifyCallee(e.callee)) {
+            null -> e.copy(callee = transformExpr(e.callee), args = e.args.map(::transformExpr))
+            else -> e.copy(callee = stringified, args = e.args.map(::transformExpr))
         }
         is Expr.BinaryExpr -> e.copy(left = transformExpr(e.left), right = transformExpr(e.right))
         is Expr.UnaryExpr -> e.copy(operand = transformExpr(e.operand))
@@ -251,6 +244,25 @@ class Lowering(private val resolution: Resolution) {
     }
 
     /**
+     * The callee rewritten from `naDryst` to `toString`, or `null` when this callee is not a
+     * prelude-known `naDryst` access and should be transformed the ordinary way.
+     */
+    private fun stringifyCallee(callee: Expr): Expr? {
+        val receiver = when (callee) {
+            is Expr.MemberExpr -> if (callee.name == KotlinPrelude.STRINGIFY_MEMBER) callee.receiver else null
+            is Expr.SafeMemberExpr -> if (callee.name == KotlinPrelude.STRINGIFY_MEMBER) callee.receiver else null
+            else -> null
+        } ?: return null
+        if (!isPreludeKnown(resolution.typeOf(receiver))) return null
+        val lowered = transformExpr(receiver)
+        return when (callee) {
+            is Expr.MemberExpr -> callee.copy(receiver = lowered, name = KotlinPrelude.TO_STRING_MEMBER)
+            is Expr.SafeMemberExpr -> callee.copy(receiver = lowered, name = KotlinPrelude.TO_STRING_MEMBER)
+            else -> null
+        }
+    }
+
+    /**
      * `.dylka` → the Kotlin property for the receiver's type; `null` for any other
      * member name. String-like receivers take `length`, collections take `size`, and
      * UNKNOWN receivers (checker deferred, e.g. wildcard imports) default to `size`.
@@ -263,10 +275,15 @@ class Lowering(private val resolution: Resolution) {
         }
         if (member != KotlinPrelude.LENGTH_MEMBER) return null
         val t = resolution.typeOf(receiver)
+        // Only Dryst, Halda and Kupa declare `dylka` (see resolve/Prelude.kt). Anything else —
+        // a user `tryda` with its own `dylka`, or a Cyslo/Bul that has none — keeps the name it
+        // was written with and lets the resolver or kotlinc have the last word.
         return when {
             t.kind == KType.Kind.UNKNOWN -> KotlinPrelude.SIZE_PROPERTY
+            !isPreludeKnown(t) -> null
+            t.kotlinName == "String" -> KotlinPrelude.LENGTH_PROPERTY
             t.kotlinName == "List" || t.kotlinName == "Map" -> KotlinPrelude.SIZE_PROPERTY
-            else -> KotlinPrelude.LENGTH_PROPERTY
+            else -> null
         }
     }
 

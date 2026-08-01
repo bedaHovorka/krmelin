@@ -27,17 +27,33 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     /** Return-type context for the function being checked; [KType.NIC] = no declared type. */
     private val returnContext = ArrayDeque<Pair<String, KType>>()
 
+    /**
+     * Assignments sitting in a statement position, where Kotlin permits them. Identity-keyed, so
+     * in `a = b = 1` only the outer node is a member and exactly one diagnostic comes out.
+     */
+    private val statementAssigns: MutableSet<Expr> =
+        java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
+
+    /**
+     * Lambdas in a position that supplies an expected type — i.e. call arguments, the only such
+     * position Krmelin has. Identity-keyed for the same reason.
+     */
+    private val contextualLambdas: MutableSet<Expr> =
+        java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
+
     fun check(unit: Decl.CompilationUnit) {
         for (decl in unit.declarations) checkDecl(decl)
     }
 
     // ── Declarations ────────────────────────────────────────────────────────
 
-    private fun checkDecl(decl: Decl) {
+    private fun checkDecl(decl: Decl, inInterface: Boolean = false) {
         when (decl) {
-            is Decl.ClassDecl -> decl.members.forEach(::checkDecl)
+            // `zapisnik` members are abstract, so an uninitialized property is legal there;
+            // the parent's kind is the only place that is knowable.
+            is Decl.ClassDecl -> decl.members.forEach { checkDecl(it, inInterface = decl.isInterface) }
             is Decl.FunDecl -> checkFunction(decl)
-            is Decl.PropertyDecl -> checkProperty(decl)
+            is Decl.PropertyDecl -> checkProperty(decl, local = false, inInterface = inInterface)
             else -> Unit
         }
     }
@@ -61,12 +77,27 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         }
     }
 
-    private fun checkProperty(decl: Decl.PropertyDecl) {
+    private fun checkProperty(decl: Decl.PropertyDecl, local: Boolean, inInterface: Boolean = false) {
         val symbol = resolution.declarations[decl] as? Symbol.Variable
         // Keyed on what the user wrote, not on whether the symbol has a type yet: on-demand
         // inference may already have filled one in, and that is not a declared type.
         val declared = if (decl.type != null) symbol?.type else null
-        val initializer = decl.initializer ?: return
+        val initializer = decl.initializer
+        if (initializer == null) {
+            // Kotlin lets a *local* defer its assignment, but a top-level or `tryda` property
+            // must be initialized where it is declared.
+            if (!local && !inInterface) {
+                reporter.error(
+                    DiagCode.UNINITIALIZED_PROPERTY,
+                    "'${decl.name}' nema hodnotu — mimo funkciju sa to musi rovnou naplnic",
+                    decl.span,
+                    highlight = "tady chybi '= hodnota'",
+                    fix = "doplň pocatecni hodnotu, napr. '${if (decl.isMutable) "mozej" else "toz"} ${decl.name}" +
+                        (declared?.let { ": ${it.display}" } ?: "") + " = ...'",
+                )
+            }
+            return
+        }
         val inferred = infer(initializer)
         if (symbol != null && decl.type == null) symbol.type = inferred
         if (declared != null && !inferred.isAssignableTo(declared)) {
@@ -80,6 +111,11 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         }
     }
 
+    /** Marks [expr] as a statement-position assignment, so [checkAssign] lets it through. */
+    private fun allowStatementAssign(expr: Expr) {
+        if (expr is Expr.AssignExpr) statementAssigns += expr
+    }
+
     private fun checkBlock(block: Stmt.Block) {
         block.statements.forEach(::checkStmt)
     }
@@ -89,7 +125,7 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     private fun checkStmt(stmt: Stmt) {
         when (stmt) {
             is Stmt.Block -> checkBlock(stmt)
-            is Stmt.PropertyStmt -> checkProperty(stmt.decl)
+            is Stmt.PropertyStmt -> checkProperty(stmt.decl, local = true)
             is Stmt.IfStmt -> {
                 requireBul(stmt.condition, "kaj")
                 checkBlock(stmt.thenBlock)
@@ -110,7 +146,12 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
                         }
                     }
                     when (val body = branch.body) {
-                        is WhenBody.ExprBody -> infer(body.expr)
+                        // A `when` branch body is a control-structure body, so Kotlin accepts a
+                        // bare assignment there just as it does in a statement.
+                        is WhenBody.ExprBody -> {
+                            allowStatementAssign(body.expr)
+                            infer(body.expr)
+                        }
                         is WhenBody.BlockBody -> checkBlock(body.block)
                     }
                 }
@@ -130,7 +171,10 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
                 stmt.finallyBlock?.let(::checkBlock)
             }
             is Stmt.ThrowStmt -> infer(stmt.expr)
-            is Stmt.ExprStmt -> infer(stmt.expr)
+            is Stmt.ExprStmt -> {
+                allowStatementAssign(stmt.expr)
+                infer(stmt.expr)
+            }
             is Stmt.BreakStmt, is Stmt.ContinueStmt -> Unit
         }
     }
@@ -302,6 +346,19 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         is Expr.SafeMemberExpr -> inferMember(expr.receiver, expr.name, safe = true)
 
         is Expr.LambdaExpr -> {
+            // Krmelin has no function-type syntax (Plan.md §15), so nothing can annotate a
+            // lambda's parameters. A call argument is the one position that supplies an expected
+            // type for kotlinc to infer them from; anywhere else the emitted `.kt` will not build.
+            if (expr.params.isNotEmpty() && expr !in contextualLambdas) {
+                reporter.error(
+                    DiagCode.LAMBDA_NEEDS_CONTEXT,
+                    "lambda s parametrama sa neda odlozit stranou — neni z ceho uhadnut ich typ",
+                    expr.span,
+                    highlight = "parametry '${expr.params.joinToString(", ")}' nemaju typ",
+                    fix = "podaj lambdu rovnou tej robote, co ju bere, misto ukladania do premennej",
+                    flourish = "krmelin nezna typy robot",
+                )
+            }
             when (val body = expr.body) {
                 is LambdaBody.ExprBody -> infer(body.expr)
                 is LambdaBody.BlockBody -> checkBlock(body.block)
@@ -311,6 +368,19 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     }
 
     private fun checkAssign(expr: Expr.AssignExpr): KType {
+        // Kotlin has no assignment expressions. Emitting `f(a = 7)` verbatim would turn a
+        // write into a *named argument* — the assignment silently disappears — so an
+        // assignment is only legal as a whole statement.
+        if (expr !in statementAssigns) {
+            reporter.error(
+                DiagCode.ASSIGN_NOT_EXPRESSION,
+                "prirazeni neni vyraz — tady sa hodnota ocekava, ne zapis",
+                expr.span,
+                highlight = "tady sa prirazuje uprostred vyrazu",
+                fix = "prirad to na vlastnim radku a potom tu premennu podaj dal",
+                flourish = "najprv zapis, potom podavaj",
+            )
+        }
         val value = infer(expr.value)
         val target = expr.target
         if (target is Expr.NameExpr) {
@@ -383,6 +453,10 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     }
 
     private fun inferCall(expr: Expr.CallExpr): KType {
+        // An argument is the one position where kotlinc can infer a lambda's parameter types
+        // from the callee's signature — mark them before inferring, so the check in the
+        // [Expr.LambdaExpr] arm lets them through.
+        expr.args.forEach { if (it is Expr.LambdaExpr) contextualLambdas += it }
         expr.args.forEach(::infer)
         return when (val callee = expr.callee) {
             is Expr.NameExpr -> when (val symbol = resolution.bindings[callee]) {

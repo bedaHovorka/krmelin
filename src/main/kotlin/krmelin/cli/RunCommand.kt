@@ -66,7 +66,12 @@ class RunCommand : CliktCommand(
             val ktFile = File(workDir, "${File(file).nameWithoutExtension}.kt")
             ktFile.writeText(outcome.kt)
             val sources = mutableListOf(ktFile)
-            if (outcome.usesFlakanci) sources += KotlinBackend.extractFlakanci(workDir)
+            // Into a subdirectory, not next to the program: extractFlakanci always writes
+            // `Flakanci.kt`, which would otherwise overwrite a user program named Flakanci.krm.
+            // kotlinc takes free-form source paths, so the layout is invisible to it.
+            if (outcome.usesFlakanci) {
+                sources += KotlinBackend.extractFlakanci(File(workDir, "runtime").apply { mkdirs() })
+            }
 
             val classesDir = File(workDir, "classes")
             val captured = ByteArrayOutputStream()
@@ -87,9 +92,11 @@ class RunCommand : CliktCommand(
                 throw ProgramResult(1)
             }
 
+            // From ktFile, the file kotlinc was actually handed — the one source of truth for
+            // which facade class it produced.
             val mainClass = MainClassName.forUnit(
                 MainClassName.packageOf(outcome.unit),
-                File(file).nameWithoutExtension,
+                ktFile.nameWithoutExtension,
             )
             val programArgs = args?.split(Regex("\\s+"))?.filter { it.isNotBlank() } ?: emptyList()
             val exitCode = ProcessBuilder(

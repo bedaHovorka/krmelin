@@ -50,4 +50,31 @@ object KotlinPrelude {
 
     const val RUNTIME_PACKAGE = "krmelin.runtime"
     const val RUNTIME_IMPORT_LINE = "import krmelin.runtime.*"
+
+    /** The fully-qualified spelling of a prelude print, used when a user name captures it. */
+    fun qualifiedPrint(kotlinName: String): String = "kotlin.io.$kotlinName"
+
+    /**
+     * Kotlin's *hard* keywords — the ones that are never legal as a bare identifier.
+     *
+     * Krmelin's identifier shape (`Lexer.isIdentifierStart`/`isIdentifierPart`) is exactly
+     * Kotlin's, so a hard-keyword collision is the only reason an identifier ever needs
+     * escaping. Soft keywords (`by`, `catch`, `get`, `where`, …) and modifier keywords are
+     * legal identifiers in Kotlin and are deliberately absent.
+     */
+    val KOTLIN_HARD_KEYWORDS: Set<String> = setOf(
+        "as", "break", "class", "continue", "do", "else", "false", "for", "fun", "if",
+        "in", "interface", "is", "null", "object", "package", "return", "super", "this",
+        "throw", "true", "try", "typealias", "typeof", "val", "var", "when", "while",
+    )
+
+    /**
+     * [name] as a Kotlin identifier, backtick-quoted when it is a hard keyword.
+     *
+     * Not for package or import components: `` import `when`.x `` would ask kotlinc for a
+     * package literally named `` `when` ``, so those two sites stay verbatim and a Krmelin
+     * package path containing a Kotlin keyword is a documented limitation.
+     */
+    fun escapeIdent(name: String): String =
+        if (name in KOTLIN_HARD_KEYWORDS) "`$name`" else name
 }

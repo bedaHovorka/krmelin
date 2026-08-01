@@ -97,6 +97,9 @@ milestones can add codes without renumbering.
 | HAV300 | Type mismatch — the value's type does not fit the declared type. |
 | HAV330 | Assignment to an immutable `toz` binding. |
 | HAV331 | Condition must be `Bul` — `kaj`/`kajtez`/`rubaj`/`podle_teho` conditions. |
+| HAV332 | Assignment used where a value is expected; Kotlin has no assignment expressions. |
+| HAV333 | A property outside a function body has no initial value. |
+| HAV334 | A lambda with parameters has nothing to infer their types from. |
 | HAV341 | `davaj <expr>` returns a value but the function declares no return type. |
 | HAV342 | `davaj` does not match the function's declared return type. |
 | HAV350 | Wrong number of arguments at a call site. |
@@ -108,6 +111,7 @@ milestones can add codes without renumbering.
 | HAV400 | Internal codegen failure; no more specific code applies. |
 | HAV401 | No entry point — `krmelin run` needs a top-level, parameterless `rynek`. |
 | HAV410 | The embedded Kotlin compiler rejected the emitted `.kt`; its own messages follow. |
+| HAV411 | A different `Flakanci.kt` already exists beside the output; the runtime was not written. |
 
 ## Notes on wording
 
