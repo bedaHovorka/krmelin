@@ -49,6 +49,7 @@ milestones can add codes without renumbering.
 | HAV100–HAV199 | parser | in use |
 | HAV200–HAV299 | resolver | in use |
 | HAV300–HAV399 | type checker | in use |
+| HAV400–HAV499 | codegen / Kotlin backend | in use |
 
 ## Lexer (HAV001–HAV099)
 
@@ -99,6 +100,14 @@ milestones can add codes without renumbering.
 | HAV341 | `davaj <expr>` returns a value but the function declares no return type. |
 | HAV342 | `davaj` does not match the function's declared return type. |
 | HAV350 | Wrong number of arguments at a call site. |
+
+## Codegen / Kotlin backend (HAV400–HAV499)
+
+| Code | Meaning |
+|---|---|
+| HAV400 | Internal codegen failure; no more specific code applies. |
+| HAV401 | No entry point — `krmelin run` needs a top-level, parameterless `rynek`. |
+| HAV410 | The embedded Kotlin compiler rejected the emitted `.kt`; its own messages follow. |
 
 ## Notes on wording
 

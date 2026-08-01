@@ -14,6 +14,7 @@ package krmelin.diag
  * | HAV100–HAV199 | parser |
  * | HAV200–HAV299 | resolver (M3) |
  * | HAV300–HAV399 | type checker (M3) |
+ * | HAV400–HAV499 | codegen / Kotlin backend (M4) |
  *
  * Keep [docs/language-spec.md](../../../../../../docs/language-spec.md) in step with this
  * list; Plan.md §10 requires a published index.
@@ -62,4 +63,12 @@ enum class DiagCode(val code: String) {
     UNEXPECTED_RETURN_VALUE("HAV341"),
     RETURN_TYPE_MISMATCH("HAV342"),
     ARITY_MISMATCH("HAV350"),
+
+    // ── Codegen / Kotlin backend ─────────────────────────────────────────────
+    /** Catch-all for codegen failures that have no dedicated code. */
+    CODEGEN_INTERNAL("HAV400"),
+    /** `krmelin run --args` on a file with no top-level, parameterless `rynek`. */
+    NO_ENTRY_POINT("HAV401"),
+    /** The embedded Kotlin compiler rejected the emitted `.kt` (its own messages follow). */
+    BACKEND_FAILED("HAV410"),
 }

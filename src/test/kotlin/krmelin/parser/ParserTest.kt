@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 
 class ParserTest {
     private fun parseResource(name: String): Pair<String, DiagnosticReporter> {
-        val file = File("tests/parser/$name")
+        val file = File("tests/golden/$name")
         val source = file.readText()
         val reporter = DiagnosticReporter()
         val lexer = Lexer(source, file.path, reporter)

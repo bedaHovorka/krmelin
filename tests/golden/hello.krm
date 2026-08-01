@@ -1,0 +1,5 @@
+sachta demo
+
+robota rynek() {
+    zarvat("Toz vitaj, Krmelin!")
+}

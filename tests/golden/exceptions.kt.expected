@@ -1,0 +1,22 @@
+import krmelin.runtime.*
+
+data class Mikrofon(var zapnuty: Boolean)
+
+@Throws(Flakanec::class)
+fun drystaniPredMikrofonem(mikrofon: Mikrofon? = null): String {
+    if (mikrofon != null && mikrofon.zapnuty) {
+        return "Hanzel desitka"
+    } else {
+        throw Flakanec("mikrofon je vypnuty")
+    }
+}
+
+fun main() {
+    try {
+        println(drystaniPredMikrofonem())
+    } catch (f: Flakanec) {
+        println("dostal sem: ${f.zprava}")
+    } finally {
+        println("fajront, chlapi")
+    }
+}

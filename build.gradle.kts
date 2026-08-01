@@ -14,6 +14,9 @@ repositories {
 
 dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
+    // In-process Kotlin compilation for `compile --jar` and `run` (M4): no kotlinc on
+    // PATH is required. Keeps the fat jar self-contained, same philosophy as PorubaUnit.
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.1.21")
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -25,6 +28,10 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    // Golden tests regenerate expected files with -Dupdate.golden=true (Plan.md §9).
+    systemProperty("update.golden", System.getProperty("update.golden") ?: "false")
+    // E2e tests shell out to the fat jar (krmelin run/compile).
+    dependsOn(tasks.shadowJar)
     finalizedBy(tasks.jacocoTestReport)
 }
 
@@ -41,7 +48,14 @@ tasks.jacocoTestCoverageVerification {
     violationRules {
         rule {
             element = "PACKAGE"
-            includes = listOf("krmelin.lexer", "krmelin.parser", "krmelin.resolve", "krmelin.types")
+            includes = listOf(
+                "krmelin.lexer",
+                "krmelin.parser",
+                "krmelin.resolve",
+                "krmelin.types",
+                "krmelin.lower",
+                "krmelin.codegen",
+            )
             limit {
                 minimum = "0.90".toBigDecimal()
             }
