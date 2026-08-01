@@ -67,11 +67,12 @@ by Czech, Polish, German, and Silesian. Markers that make the vocabulary feel au
 | `finally` | `fajront` | "end of shift" — happens no matter what | |
 | `throw` | `dostanes` | "you'll get one" | `dostanes Flakanec("...")` |
 | `throws` | `rozdava` | "dishes them out" | On signature only; **not enforced** |
-| `this` | `joch` | Dialect self-reference | |
-| `print` | `pravit` | "to say" | Standard function, no newline |
-| `println` | `zarvat` | "to yell" | Standard function, with newline |
 | test marker | `@Sichta` | "a shift" — a unit of testing work | Annotation on `robota` |
 | test suite | `@Parta` | "a crew/work gang" | Annotation on `tryda` |
+
+> `pravit` (`print`) and `zarvat` (`println`) are **prelude functions**, not reserved
+> words — see the prelude table below. `this` is planned as `joch` but is **not in
+> v0.1** (see `docs/language-spec.md` §12).
 
 ## Exception vocabulary
 

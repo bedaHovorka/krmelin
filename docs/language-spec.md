@@ -29,19 +29,26 @@ variable name.
 ### 1.3 Comments
 
 Line comments start with `//` and run to end of line. Block comments are delimited by
-`/*` and `*/` and may span multiple lines. Block comments do not nest.
+`/*` and `*/` and may span multiple lines. Block comments **nest**: `/* /* */ */` is a
+single comment, and a matching `*/` is required for each opening `/*`.
 
 ### 1.4 String literals and templates
 
 String literals are delimited by `"`. Supported escape sequences: `\n`, `\t`, `\r`,
 `\\`, `\"`, `\$`.
 
-String templates embed expressions with `${expr}`:
+String templates embed values inside a literal. Two forms are supported:
+
+- `${expr}` — any expression, evaluated and converted to a string.
+- `$name` — a bare identifier, shorthand for `${name}`.
 
 ```krmelin
 toz jmeno = "Franta"
-zarvat("Nazdar, ${jmeno}!")
+zarvat("Nazdar, ${jmeno}!")   // expression form
+zarvat("Nazdar, $jmeno!")     // shorthand for the same thing
 ```
+
+A `$` not followed by `{` or an identifier start is kept as a literal `$`.
 
 ### 1.5 Numeric literals
 
@@ -90,7 +97,7 @@ but they are reserved by the prelude and should not be redefined.
 
 Append `?` to any type to make it nullable: `Dryst?`, `Cyslo?`. The canonical null
 literal is `chuj`; `nic` is an accepted milder synonym. Both lex to `TokenType.NULL`
-and emit identical Kotlin `null`. See [docs/keywords.md](keywords.md) for the register
+and emit identical Kotlin `null`. See [keywords.md](keywords.md) for the register
 note.
 
 ---
@@ -425,9 +432,10 @@ robota pozdrav(mejno: Dryst = "cype") {
 }
 ```
 
-### 8.4 `joch` — this
+### 8.4 `this` — not in v0.1
 
-Inside a class body, `joch` refers to the current instance, analogous to Kotlin `this`.
+Krmelin v0.1 has **no `this` keyword**. Inside a class body, refer to members by their
+bare names. A dialect `this` (`joch`) is planned but not yet implemented; see §12.
 
 ### 8.5 Expression body
 
@@ -446,6 +454,7 @@ program        = { topLevelDecl } ;
 topLevelDecl   = packageDecl | importDecl | classDecl | funDecl | propertyDecl ;
 packageDecl    = "sachta" qualifiedName NL ;
 importDecl     = "privezt" qualifiedName [ "." "*" ] NL ;
+qualifiedName  = IDENT { "." IDENT } ;
 
 classDecl      = { annotation } ( [ "zapisnik" ] "tryda" IDENT [ paramList ] [ classBody ]
                | "jedynak" IDENT [ classBody ]
@@ -474,6 +483,7 @@ ifStmt         = "kaj" "(" expr ")" block
                  [ "boinak" block ] ;
 whenStmt       = "podle_teho" [ "(" [ expr ] ")" ] "{" { whenBranch } "}" ;
 whenBranch     = ( exprList | "boinak" ) "->" ( expr | block ) ;
+exprList       = expr { "," expr } ;
 forStmt        = "prokazdy" "(" IDENT "v" expr ")" block ;
 whileStmt      = "rubaj" "(" expr ")" block ;
 returnStmt     = "davaj" [ expr ] NL ;
@@ -497,8 +507,10 @@ multiplicative = unary { ("*" | "/" | "%") unary } ;
 unary          = ("!" | "-") unary | postfix ;
 postfix        = primary { callSuffix | "." IDENT | "?." IDENT } ;
 callSuffix     = "(" [ argList ] ")" ;
-primary        = literal | IDENT | "(" expr ")" | stringTemplate | lambda ;
+argList        = expr { "," expr } ;
+primary        = literal | IDENT | "(" expr ")" | lambda ;
 literal        = INT | FLOAT | STRING | "fajne" | "nyt" | "chuj" | "nic" ;
+lambda         = "{" [ IDENT { "," IDENT } "->" ] { statement } "}" ;
 NL             = ? newline or ';' ? ;
 ```
 
@@ -530,7 +542,6 @@ NL             = ? newline or ';' ? ;
 | `pultik` / `bitka` / `fajront` | `try` / `catch` / `finally` |
 | `dostanes` | `throw` |
 | `rozdava` | `@Throws(...)` (annotation, not enforced) |
-| `joch` | `this` |
 | `pravit(x)` | `print(x)` |
 | `zarvat(x)` | `println(x)` |
 | `Dryst` / `Cyslo` / `Bul` | `String` / `Int` / `Boolean` |
@@ -654,6 +665,8 @@ The following Kotlin features are deliberately outside Krmelin v0.1 scope:
 - **No reflection** or annotation processing beyond `@Sichta`/`@Parta`.
 - **No multiplatform** — targets JVM only.
 - **No checked exception enforcement** — `rozdava` is documentation only (§6.4).
+- **No `this`** — v0.1 has no `this`/`joch` keyword; class bodies use bare member names.
+  `joch` is planned for a later release.
 - **No IDE tooling** (LSP, debugger) in v0.1.
 - **Not backward-compatible with OSTRAJava** syntax (`pyco` terminator,
   case-insensitive keywords, `.tryda` files).

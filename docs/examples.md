@@ -149,6 +149,10 @@ fun delka(s: String?): Int {
 Usage:
 
 ```krmelin
+robota delka(s: Dryst?) : Cyslo {
+    davaj s?.dylka ?: 0
+}
+
 robota rynek() {
     musi_byt(delka("Ostrava"), 7)
     musi_byt(delka(chuj), 0)

@@ -34,7 +34,7 @@ robota rynek() {
 Run it:
 
 ```sh
-java -jar build/libs/krmelin-*.jar run hello.krm
+java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" run hello.krm
 ```
 
 Output:
@@ -46,7 +46,7 @@ Toz vitaj, Krmelin!
 Inspect the generated Kotlin:
 
 ```sh
-java -jar build/libs/krmelin-*.jar compile hello.krm -o hello.kt
+java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" compile hello.krm -o hello.kt
 cat hello.kt
 ```
 
@@ -148,7 +148,7 @@ district of Ostrava. Annotate tests with `@Sichta` ("a shift"):
 Run all tests under `tests/`:
 
 ```sh
-java -jar build/libs/krmelin-*.jar test
+java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" test
 ```
 
 Output:
@@ -178,11 +178,13 @@ See [`docs/porubaunit.md`](docs/porubaunit.md) for the full assertion API.
 krmelin compile <file>      Transpile .krm → .kt  (-o, --jar, --emit-only)
 krmelin run <file>          Compile and execute    (--args, --keep)
 krmelin test [path]         Run @Sichta tests      (--filter, --verbose)
-krmelin fmt <file|dir>      Format source          (--check, --write)
+krmelin fmt <file|dir>      Format source          (--check)
 krmelin repl                Interactive REPL       (--load)
 ```
 
-Global flags: `--version`, `--help`, `--no-color`, `-v/--verbose`.
+Global flag: `--help`. (`-v/--verbose` is a `test` option; there is no `--version` yet.)
+
+`fmt` and `repl` ship as stubs in v0.1 and are in active development.
 
 ---
 
