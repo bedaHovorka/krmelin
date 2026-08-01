@@ -67,4 +67,17 @@ class TypeTest {
         assertFalse(haldaCysel.isAssignableTo(haldaBare))
         assertTrue(haldaCysel.isAssignableTo(haldaCysel.copy(nullable = true)))
     }
+
+    @Test
+    fun `nullable() flips the nullability flag`() {
+        assertTrue(cyslo.nullable().nullable)
+        assertFalse(cyslo.nullable().copy(nullable = false).nullable)
+    }
+
+    @Test
+    fun `NIC is the unit type and only fits itself`() {
+        assertTrue(KType.NIC.isAssignableTo(KType.NIC))
+        assertFalse(KType.NIC.isAssignableTo(cyslo))
+        assertFalse(cyslo.isAssignableTo(KType.NIC))
+    }
 }
