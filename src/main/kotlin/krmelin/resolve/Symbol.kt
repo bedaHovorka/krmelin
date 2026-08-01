@@ -58,9 +58,13 @@ sealed class Symbol {
         /** Number of type parameters the name takes (`Halda` 1, `Kupa` 2, plain types 0). */
         val typeArity: Int = 0,
         val decl: Decl.ClassDecl? = null,
-        val members: Map<String, Symbol> = emptyMap(),
+        /**
+         * Filled in after the name is in scope: a class's members are resolved only once
+         * every class name is visible, so a class can name itself and its peers.
+         */
+        var members: Map<String, Symbol> = emptyMap(),
         /** Constructor signature for callable type names (`Flakanec("…")`), if any. */
-        val constructor: Function? = null,
+        var constructor: Function? = null,
     ) : Symbol()
 }
 

@@ -50,6 +50,8 @@ enum class DiagCode(val code: String) {
     SHADOWED_DECLARATION("HAV210"),
     UNDECLARED_NAME("HAV220"),
     UNKNOWN_TYPE_NAME("HAV221"),
+    /** A generic type name was written with the wrong number of type arguments. */
+    TYPE_ARITY_MISMATCH("HAV222"),
 
     // ── Type checker ─────────────────────────────────────────────────────────
     TYPE_MISMATCH("HAV300"),

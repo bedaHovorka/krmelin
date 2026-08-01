@@ -20,6 +20,12 @@ data class KType(
     val kind: Kind = Kind.DECLARED,
     /** Direct ancestor for exception subtyping (`bitka` matching). */
     val parent: KType? = null,
+    /**
+     * Name of the user `tryda`/`zapisnik` that declared this type; `null` for prelude types.
+     * Identity compares this alongside [kotlinName], so a user class named `String` stays
+     * distinct from the `Dryst` alias even though both emit Kotlin `String`.
+     */
+    val declId: String? = null,
 ) {
     enum class Kind {
         /** Prelude primitive (`Cyslo`, `Dryst`, `Bul`, …). */
@@ -40,13 +46,31 @@ data class KType(
 
     fun nullable(nullable: Boolean = true): KType = copy(nullable = nullable)
 
+    /**
+     * The type as a Krmelin user wrote it — type arguments and `?` included.
+     *
+     * Diagnostics must use this rather than [name]: two types that differ only in nullability
+     * or type arguments share a [name], so a message built from [name] reads "Dryst is not
+     * Dryst" and tells the reader nothing.
+     */
+    val display: String
+        get() = buildString {
+            append(name)
+            if (typeArgs.isNotEmpty()) typeArgs.joinTo(this, ", ", "<", ">") { it.display }
+            if (nullable && kind != Kind.NULA) append('?')
+        }
+
     fun isAssignableTo(target: KType): Boolean = when {
         kind == Kind.UNKNOWN || target.kind == Kind.UNKNOWN -> true
         kind == Kind.NULA -> target.nullable
-        kotlinName == target.kotlinName -> matchesShape(target) && nullabilityOk(target)
+        isSameTypeAs(target) -> matchesShape(target) && nullabilityOk(target)
         isSubtypeOf(target) -> nullabilityOk(target)
         else -> false
     }
+
+    /** Same emitted Kotlin type *and* same declaration — see [declId]. */
+    private fun isSameTypeAs(target: KType): Boolean =
+        kotlinName == target.kotlinName && declId == target.declId
 
     /** Generics are compared by arity only; element-type variance is left to kotlinc. */
     private fun matchesShape(target: KType): Boolean = typeArgs.size == target.typeArgs.size

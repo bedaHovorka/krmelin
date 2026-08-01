@@ -63,17 +63,19 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
 
     private fun checkProperty(decl: Decl.PropertyDecl) {
         val symbol = resolution.declarations[decl] as? Symbol.Variable
-        val declared = symbol?.type
+        // Keyed on what the user wrote, not on whether the symbol has a type yet: on-demand
+        // inference may already have filled one in, and that is not a declared type.
+        val declared = if (decl.type != null) symbol?.type else null
         val initializer = decl.initializer ?: return
         val inferred = infer(initializer)
-        if (symbol != null && declared == null) symbol.type = inferred
+        if (symbol != null && decl.type == null) symbol.type = inferred
         if (declared != null && !inferred.isAssignableTo(declared)) {
             reporter.error(
                 DiagCode.TYPE_MISMATCH,
-                "'${decl.name}' ma byt ${declared.name}, ale dostava ${inferred.name}",
+                "'${decl.name}' ma byt ${declared.display}, ale dostava ${inferred.display}",
                 initializer.span,
-                highlight = "tohle je ${inferred.name}, ne ${declared.name}",
-                fix = "zmen typ na '${declared.name}', abo uprav hodnotu",
+                highlight = "tohle je ${inferred.display}, ne ${declared.display}",
+                fix = "zmen typ na '${declared.display}', abo uprav hodnotu",
             )
         }
     }
@@ -134,27 +136,41 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     }
 
     private fun requireBul(condition: Expr, construct: String) {
-        val type = infer(condition)
-        if (type.kind == KType.Kind.UNKNOWN) return
-        if (type.kotlinName != "Boolean" || type.nullable) {
-            reporter.error(
-                DiagCode.CONDITION_NOT_BUL,
-                "podminka v '$construct' musi byt Bul, ale je ${type.name}",
-                condition.span,
-                highlight = "tohle je ${type.name}, ne fajne/nyt",
-                fix = if (type.kotlinName == "Int") {
-                    "chtel si '$construct (… > 0)'?"
-                } else {
-                    "udelej z toho Bul, treba porovnanim"
-                },
-                flourish = "fajne abo nyt, nic mezi",
-            )
-        }
+        reportIfNotBul(condition, infer(condition), construct)
     }
+
+    /** Shared by conditions and by the `aj`/`ci`/`!` operands, which are conditions too. */
+    private fun reportIfNotBul(expr: Expr, type: KType, construct: String, operator: Boolean = false) {
+        if (type.kind == KType.Kind.UNKNOWN) return
+        if (type.isBul) return
+        reporter.error(
+            DiagCode.CONDITION_NOT_BUL,
+            "${if (operator) "operand '$construct'" else "podminka v '$construct'"} " +
+                "musi byt Bul, ale je ${type.display}",
+            expr.span,
+            highlight = "tohle je ${type.display}, ne fajne/nyt",
+            // The `> 0` nudge only makes sense for a whole condition, not for one operand.
+            fix = if (type.kotlinName == "Int" && !operator) {
+                "chtel si '$construct (… > 0)'?"
+            } else {
+                "udelej z toho Bul, treba porovnanim"
+            },
+            flourish = "fajne abo nyt, nic mezi",
+        )
+    }
+
+    private val KType.isBul: Boolean
+        get() = kotlinName == "Boolean" && declId == null && !nullable
 
     private fun checkReturn(stmt: Stmt.ReturnStmt) {
         val (funName, expected) = returnContext.lastOrNull() ?: return
         val value = stmt.value
+        // A declared return type that failed to resolve arrives as UNKNOWN. The resolver has
+        // already reported it; saying anything more here would contradict that diagnostic.
+        if (expected.kind == KType.Kind.UNKNOWN) {
+            value?.let(::infer)
+            return
+        }
         when {
             expected == KType.NIC && value == null -> Unit
             expected == KType.NIC && value != null -> {
@@ -170,10 +186,10 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
             expected != KType.NIC && value == null ->
                 reporter.error(
                     DiagCode.RETURN_TYPE_MISMATCH,
-                    "robota '$funName' ma vracet ${expected.name}, ale 'davaj' nic nevraci",
+                    "robota '$funName' ma vracet ${expected.display}, ale 'davaj' nic nevraci",
                     stmt.span,
                     highlight = "chybi hodnota za 'davaj'",
-                    fix = "napis treba 'davaj <hodnota typu ${expected.name}>', abo zrus navratovy typ",
+                    fix = "napis treba 'davaj <hodnota typu ${expected.display}>', abo zrus navratovy typ",
                 )
             else -> {
                 val inferred = infer(value!!)
@@ -187,10 +203,10 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     private fun reportReturnMismatch(span: krmelin.lexer.SourceSpan, funName: String, expected: KType, inferred: KType) {
         reporter.error(
             DiagCode.RETURN_TYPE_MISMATCH,
-            "robota '$funName' ma vracet ${expected.name}, ale 'davaj' vraci ${inferred.name}",
+            "robota '$funName' ma vracet ${expected.display}, ale 'davaj' vraci ${inferred.display}",
             span,
-            highlight = "tohle je ${inferred.name}, ne ${expected.name}",
-            fix = "vrat ${expected.name}, abo oprav navratovy typ roboty",
+            highlight = "tohle je ${inferred.display}, ne ${expected.display}",
+            fix = "vrat ${expected.display}, abo oprav navratovy typ roboty",
         )
     }
 
@@ -217,7 +233,7 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         is Expr.NullLit -> KType.NULA
 
         is Expr.NameExpr -> when (val symbol = resolution.bindings[expr]) {
-            is Symbol.Variable -> symbol.type ?: KType.UNKNOWN
+            is Symbol.Variable -> typeOfVariable(symbol)
             is Symbol.Parameter -> symbol.type ?: KType.UNKNOWN
             is Symbol.Function -> KType.UNKNOWN // function values are not modelled
             is Symbol.TypeName -> KType.UNKNOWN // a bare type name used as a value
@@ -229,7 +245,11 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         is Expr.UnaryExpr -> {
             val operand = infer(expr.operand)
             when (expr.op) {
-                TokenType.BANG -> if (operand.kotlinName == "Boolean") Prelude.BUL else KType.UNKNOWN
+                // Always Bul, but the operand is checked — otherwise `kaj (!i)` on a Cyslo
+                // came out UNKNOWN and slipped past the condition check entirely.
+                TokenType.BANG -> Prelude.BUL.also {
+                    reportIfNotBul(expr.operand, operand, "!", operator = true)
+                }
                 TokenType.MINUS -> operand
                 else -> KType.UNKNOWN
             }
@@ -239,8 +259,16 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
             val left = infer(expr.left)
             val right = infer(expr.right)
             when (expr.op) {
+                // Comparisons accept any operands; the boolean connectives do not, and without
+                // checking them `kaj (i aj j)` made the whole condition check vacuous.
+                TokenType.AJ, TokenType.CI -> {
+                    val name = if (expr.op == TokenType.AJ) "aj" else "ci"
+                    reportIfNotBul(expr.left, left, name, operator = true)
+                    reportIfNotBul(expr.right, right, name, operator = true)
+                    Prelude.BUL
+                }
                 TokenType.EQ, TokenType.NEQ, TokenType.LT, TokenType.GT,
-                TokenType.LE, TokenType.GE, TokenType.AJ, TokenType.CI -> Prelude.BUL
+                TokenType.LE, TokenType.GE -> Prelude.BUL
                 TokenType.PLUS -> when {
                     left.kotlinName == "String" || right.kotlinName == "String" -> Prelude.DRYST
                     left.kind != KType.Kind.UNKNOWN && left.kotlinName == right.kotlinName &&
@@ -287,7 +315,7 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         val target = expr.target
         if (target is Expr.NameExpr) {
             when (val symbol = resolution.bindings[target]) {
-                is Symbol.Variable -> {
+                is Symbol.Variable ->
                     if (!symbol.isMutable) {
                         reporter.error(
                             DiagCode.ASSIGN_TO_IMMUTABLE,
@@ -298,34 +326,60 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
                             flourish = "toz je toz",
                         )
                     } else {
-                        val declared = symbol.type
-                        if (declared != null && !value.isAssignableTo(declared)) {
-                            reporter.error(
-                                DiagCode.TYPE_MISMATCH,
-                                "'${symbol.name}' je ${
-                                    declared.name
-                                }, ale dostava ${value.name}",
-                                expr.value.span,
-                                highlight = "tohle je ${value.name}, ne ${declared.name}",
-                                fix = "prirad hodnotu typu ${declared.name}",
-                            )
-                        }
+                        checkAssignedType(symbol.name, typeOfVariable(symbol), value, expr.value.span)
                     }
-                }
-                is Symbol.Parameter -> if (!symbol.isMutable) {
-                    reporter.error(
-                        DiagCode.ASSIGN_TO_IMMUTABLE,
-                        "'${symbol.name}' je parametr bez 'mozej' — to se nemeni",
-                        expr.span,
-                        fix = "oznacte parametr jako 'mozej ${symbol.name}'",
-                    )
-                }
+                is Symbol.Parameter ->
+                    if (!symbol.isMutable) {
+                        reporter.error(
+                            DiagCode.ASSIGN_TO_IMMUTABLE,
+                            "'${symbol.name}' je parametr bez 'mozej' — to se nemeni",
+                            expr.span,
+                            fix = "oznacte parametr jako 'mozej ${symbol.name}'",
+                        )
+                    } else {
+                        // A `mozej` parameter is the main way a parameter is used at all, so
+                        // skipping the type check here left the commonest write unchecked.
+                        checkAssignedType(symbol.name, symbol.type, value, expr.value.span)
+                    }
                 else -> Unit
             }
         } else {
             infer(target)
         }
         return value
+    }
+
+    private fun checkAssignedType(name: String, declared: KType?, value: KType, span: krmelin.lexer.SourceSpan) {
+        if (declared == null || value.isAssignableTo(declared)) return
+        reporter.error(
+            DiagCode.TYPE_MISMATCH,
+            "'$name' je ${declared.display}, ale dostava ${value.display}",
+            span,
+            highlight = "tohle je ${value.display}, ne ${declared.display}",
+            fix = "prirad hodnotu typu ${declared.display}",
+        )
+    }
+
+    /**
+     * The type of a `toz`/`mozej` binding, inferring its initializer on demand.
+     *
+     * The resolver deliberately binds forward references between properties, so a `toz a = b`
+     * naming a later `toz b = 5` must follow that reference — a single forward pass leaves `a`
+     * UNKNOWN and silently swallows every error involving it. The in-progress set breaks
+     * reference cycles, which would otherwise recurse forever.
+     */
+    private val inferringProperties = java.util.IdentityHashMap<Decl.PropertyDecl, Unit>()
+
+    private fun typeOfVariable(symbol: Symbol.Variable): KType {
+        symbol.type?.let { return it }
+        val decl = symbol.decl ?: return KType.UNKNOWN
+        val initializer = decl.initializer ?: return KType.UNKNOWN
+        if (inferringProperties.put(decl, Unit) != null) return KType.UNKNOWN
+        return try {
+            infer(initializer).also { symbol.type = it }
+        } finally {
+            inferringProperties.remove(decl)
+        }
     }
 
     private fun inferCall(expr: Expr.CallExpr): KType {
@@ -342,7 +396,16 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
                 val member = memberSymbol(callee.receiver, callee.name)
                 if (member is Symbol.Function) callFunction(expr, callee, member) else KType.UNKNOWN
             }
-            is Expr.SafeMemberExpr -> KType.UNKNOWN.also { infer(callee.receiver) }
+            // Adding a `?` to the receiver must not disable checking — it used to.
+            is Expr.SafeMemberExpr -> {
+                infer(callee.receiver)
+                val member = memberSymbol(callee.receiver, callee.name)
+                if (member is Symbol.Function) {
+                    callFunction(expr, callee, member).nullable()
+                } else {
+                    KType.UNKNOWN
+                }
+            }
             else -> infer(callee).let { KType.UNKNOWN }
         }
     }
@@ -357,10 +420,32 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
                 "'${fn.name}' bere ${describeCount(required, total)}, dal si $args",
                 calleeExpr.span,
                 highlight = "spatny pocet argumentu",
-                fix = "'${fn.name}' ceka (${fn.params.joinToString(", ") { "${it.name}: ${it.type?.name ?: "?"}" }})",
+                fix = "'${fn.name}' ceka (${fn.params.joinToString(", ") { "${it.name}: ${it.type?.display ?: "?"}" }})",
             )
+        } else {
+            checkArguments(call, fn)
         }
         return fn.returnType ?: KType.NIC
+    }
+
+    /**
+     * Argument passing is the busiest assignment site in any program, and it went unchecked:
+     * only the count was compared, never the types the resolver had already worked out.
+     */
+    private fun checkArguments(call: Expr.CallExpr, fn: Symbol.Function) {
+        for ((index, arg) in call.args.withIndex()) {
+            val param = fn.params.getOrNull(index) ?: return
+            val expected = param.type ?: continue
+            val actual = infer(arg)
+            if (actual.isAssignableTo(expected)) continue
+            reporter.error(
+                DiagCode.TYPE_MISMATCH,
+                "'${fn.name}' ceka pro '${param.name}' typ ${expected.display}, ale dostava ${actual.display}",
+                arg.span,
+                highlight = "tohle je ${actual.display}, ne ${expected.display}",
+                fix = "predej hodnotu typu ${expected.display}",
+            )
+        }
     }
 
     private fun describeCount(required: Int, total: Int): String =
@@ -392,13 +477,21 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
         return if (safe) memberType.nullable() else memberType
     }
 
-    /** Finds the [Symbol.TypeName] backing [type] (prelude or user class), by Kotlin name. */
+    /**
+     * Finds the [Symbol.TypeName] backing [type] (prelude or user class).
+     *
+     * Matched on the declaration as well as the Kotlin name — matching the name alone let a
+     * user class called `String` or `List` inherit the prelude alias's member table.
+     */
     private fun typeNameFor(type: KType): Symbol.TypeName? {
         var scope: krmelin.resolve.Scope? = resolution.fileScope
         while (scope != null) {
             for (name in scope.localNames()) {
                 val symbol = scope.lookupLocal(name)
-                if (symbol is Symbol.TypeName && symbol.type.kotlinName == type.kotlinName) {
+                if (symbol is Symbol.TypeName &&
+                    symbol.type.kotlinName == type.kotlinName &&
+                    symbol.type.declId == type.declId
+                ) {
                     return symbol
                 }
             }

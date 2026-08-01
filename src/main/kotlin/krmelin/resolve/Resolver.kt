@@ -33,81 +33,145 @@ class Resolver(private val reporter: DiagnosticReporter) {
      *  inference reading `bindings`. */
     private val classScopes = java.util.IdentityHashMap<Decl.ClassDecl, Scope>()
 
+    /**
+     * Set by a `privezt …*` import. The compiler carries no model of the Kotlin stdlib, so
+     * once a wildcard is in play it cannot tell a typo from a legitimately imported name;
+     * reporting HAV220 would be a false positive, so it stops and lets `kotlinc` judge.
+     */
+    private var hasWildcardImport = false
+
     fun resolve(unit: Decl.CompilationUnit): Resolution {
         val fileScope = table.newFileScope()
         resolution = Resolution(fileScope)
         declareAll(unit.declarations, fileScope)
+        // After the declarations, so a local `robota abs` wins over `privezt kotlin.math.abs`.
+        declareImports(unit.imports, fileScope)
         for (decl in unit.declarations) bindDecl(decl, fileScope)
         return resolution
     }
 
     // ── Declaration pass ─────────────────────────────────────────────────────
 
+    private fun declareImports(imports: List<Decl.ImportDecl>, scope: Scope) {
+        for (import in imports) {
+            if (import.wildcard) {
+                hasWildcardImport = true
+                continue
+            }
+            val name = import.name.lastOrNull() ?: continue
+            // Opaque on purpose: there is no signature for an imported name here, so it types
+            // as UNKNOWN and every use of it defers to kotlinc rather than false-positiving.
+            scope.declare(Symbol.Variable(name, import.span, isMutable = false, type = KType.UNKNOWN))
+        }
+    }
+
     private fun declareAll(decls: List<Decl>, scope: Scope) {
-        // Classes first so function signatures can name them in any order.
-        for (decl in decls.filterIsInstance<Decl.ClassDecl>()) declareClass(decl, scope)
+        // Reported here, in source order, because the passes below visit classes out of order
+        // and would otherwise blame whichever declaration they happened to reach first.
+        reportDuplicates(decls)
+        // Pass 1 — every class name becomes visible before any signature is resolved, so a
+        // class can name itself (recursive types) and any class declared later in the file.
+        val classes = decls.filterIsInstance<Decl.ClassDecl>().map { it to declareClassName(it, scope) }
+        // Pass 2 — member signatures, now that every class name resolves.
+        for ((decl, symbol) in classes) declareClassMembers(decl, symbol, scope)
+        // Pass 3 — functions and properties.
         for (decl in decls) when (decl) {
-            is Decl.ClassDecl -> Unit // already declared
-            is Decl.FunDecl -> declare(functionSymbol(decl, scope), scope)
-            is Decl.PropertyDecl -> declare(variableSymbol(decl, scope), scope)
+            is Decl.FunDecl -> declareHoisted(functionSymbol(decl, scope), scope)
+            is Decl.PropertyDecl -> declareHoisted(variableSymbol(decl, scope), scope)
             else -> Unit
         }
     }
 
-    private fun declareClass(decl: Decl.ClassDecl, scope: Scope) {
-        val classScope = Scope(parent = scope, kind = Scope.Kind.CLASS)
-        classScopes[decl] = classScope
-        val members = linkedMapOf<String, Symbol>()
-        fun addMember(symbol: Symbol) {
-            val declNode = when (symbol) {
-                is Symbol.Variable -> symbol.decl
-                is Symbol.Parameter -> symbol.decl
-                is Symbol.Function -> symbol.decl
-                is Symbol.TypeName -> symbol.decl
-            }
-            if (declNode != null) resolution.declarations[declNode] = symbol
-            val existing = members.putIfAbsent(symbol.name, symbol) ?: classScope.declare(symbol)
-            if (existing != null) reportDuplicate(symbol, existing)
+    /** Names of the declarations that share one hoisted scope, in the order they were written. */
+    private fun declaredName(decl: Decl): String? = when (decl) {
+        is Decl.ClassDecl -> decl.name
+        is Decl.FunDecl -> decl.name
+        is Decl.PropertyDecl -> decl.name
+        else -> null
+    }
+
+    private fun reportDuplicates(decls: List<Decl>) {
+        val firstSpan = hashMapOf<String, SourceSpan>()
+        for (decl in decls) {
+            val name = declaredName(decl) ?: continue
+            val earlier = firstSpan[name]
+            if (earlier == null) firstSpan[name] = decl.span else reportDuplicate(name, decl.span, earlier)
         }
-        // Constructor params double as immutable/mutable members (zapisnik/tryda).
-        for (param in decl.params) addMember(paramSymbol(param, scope))
+    }
+
+    private fun declareClassName(decl: Decl.ClassDecl, scope: Scope): Symbol.TypeName {
+        classScopes[decl] = Scope(parent = scope, kind = Scope.Kind.CLASS)
+        val symbol = Symbol.TypeName(
+            decl.name, decl.span,
+            // declId keeps this distinct from a prelude alias that emits the same Kotlin name.
+            KType(decl.name, decl.name, kind = KType.Kind.DECLARED, declId = decl.name),
+            decl = decl,
+        )
+        declareHoisted(symbol, scope)
+        return symbol
+    }
+
+    private fun declareClassMembers(decl: Decl.ClassDecl, symbol: Symbol.TypeName, scope: Scope) {
+        val classScope = classScopes.getValue(decl)
+        val members = linkedMapOf<String, Symbol>()
+        fun addMember(member: Symbol) {
+            recordDeclaration(member)
+            val existing = members.putIfAbsent(member.name, member) ?: classScope.declare(member)
+            if (existing != null) reportDuplicate(member.name, member.span, existing.span)
+        }
+        // Constructor params double as immutable/mutable members (zapisnik/tryda). Their types
+        // resolve against the enclosing scope, which now holds every class name — this one too.
+        val params = decl.params.map { paramSymbol(it, scope) }
+        params.forEach(::addMember)
         for (member in decl.members) when (member) {
             is Decl.FunDecl -> addMember(functionSymbol(member, classScope))
             is Decl.PropertyDecl -> addMember(variableSymbol(member, classScope))
             else -> Unit
         }
-        val symbol = Symbol.TypeName(
-            decl.name, decl.span,
-            KType(decl.name, decl.name, kind = KType.Kind.DECLARED),
-            decl = decl,
-            members = members,
-        )
-        declare(symbol, scope)
+        symbol.members = members
+        // `predpis` is never constructed and `jedynak` already exists; everything else is
+        // callable by name, and that call is what gives HAV350 something to check.
+        if (!decl.isInterface && !decl.isObject) {
+            symbol.constructor = Symbol.Function(
+                decl.name, decl.span,
+                params = params.map { ParamSig(it.name, it.type, it.hasDefault) },
+                returnType = symbol.type,
+            )
+        }
     }
 
     private fun functionSymbol(decl: Decl.FunDecl, scope: Scope) = Symbol.Function(
         decl.name, decl.span,
-        params = decl.params.map { ParamSig(it.name, typeFor(it.type, scope), it.defaultValue != null) },
-        returnType = decl.returnType?.let { typeFor(it, scope) },
+        params = decl.params.map { ParamSig(it.name, typeFor(it.type, scope) ?: KType.UNKNOWN, it.defaultValue != null) },
+        returnType = declaredType(decl.returnType, scope),
         decl = decl,
     )
 
     private fun variableSymbol(decl: Decl.PropertyDecl, scope: Scope) = Symbol.Variable(
         decl.name, decl.span,
         isMutable = decl.isMutable,
-        type = decl.type?.let { typeFor(it, scope) },
+        type = declaredType(decl.type, scope),
         decl = decl,
     )
 
     private fun paramSymbol(param: Decl.Param, scope: Scope) = Symbol.Parameter(
         param.name, param.span,
         isMutable = param.isMutable,
-        type = typeFor(param.type, scope),
+        type = typeFor(param.type, scope) ?: KType.UNKNOWN,
         hasDefault = param.defaultValue != null,
         decl = param,
     )
 
-    private fun declare(symbol: Symbol, scope: Scope) {
+    /**
+     * A type that was written but could not be resolved becomes [KType.UNKNOWN], never `null`.
+     * `null` means "nothing was written at all", and conflating the two makes the checker
+     * contradict the resolver — it reads an unresolvable return type as "returns nothing" and
+     * then objects to the `davaj` the user correctly wrote.
+     */
+    private fun declaredType(node: TypeNode?, scope: Scope): KType? =
+        node?.let { typeFor(it, scope) ?: KType.UNKNOWN }
+
+    private fun recordDeclaration(symbol: Symbol) {
         val declNode = when (symbol) {
             is Symbol.Variable -> symbol.decl
             is Symbol.Parameter -> symbol.decl
@@ -115,25 +179,42 @@ class Resolver(private val reporter: DiagnosticReporter) {
             is Symbol.TypeName -> symbol.decl
         }
         if (declNode != null) resolution.declarations[declNode] = symbol
+    }
+
+    /**
+     * Declares a hoisted (file- or class-level) symbol. Collisions stay silent here because
+     * [reportDuplicates] already reported them against the right declaration.
+     */
+    private fun declareHoisted(symbol: Symbol, scope: Scope) {
+        recordDeclaration(symbol)
+        if (scope.declare(symbol) == null) warnShadowing(symbol, scope)
+    }
+
+    private fun declare(symbol: Symbol, scope: Scope) {
+        recordDeclaration(symbol)
         val existing = scope.declare(symbol)
-        if (existing != null) reportDuplicate(symbol, existing)
+        if (existing != null) reportDuplicate(symbol.name, symbol.span, existing.span)
         else warnShadowing(symbol, scope)
     }
 
-    private fun reportDuplicate(symbol: Symbol, existing: Symbol? = null) {
+    private fun reportDuplicate(name: String, span: SourceSpan, first: SourceSpan?) {
         reporter.error(
             DiagCode.DUPLICATE_DECLARATION,
-            "'${symbol.name}' je tu deklarovany podruhy",
-            symbol.span,
+            "'$name' je tu deklarovany podruhy",
+            span,
             highlight = "tohle jmeno tu uz je",
-            fix = existing?.let { "prejmenuj jedno z nich; prvni deklarace: ${it.span.startLine}:${it.span.startCol}" },
+            fix = first?.let { "prejmenuj jedno z nich; prvni deklarace: ${it.startLine}:${it.startCol}" },
             flourish = "dva krale na jednym trunu nesedza",
         )
     }
 
     private fun warnShadowing(symbol: Symbol, scope: Scope) {
-        val outer = scope.shadowedBy(symbol.name) ?: return
+        val owner = scope.parent?.scopeDeclaring(symbol.name) ?: return
+        val outer = owner.lookupLocal(symbol.name) ?: return
         if (outer.span == SourceSpan.NONE) return // shadowing a prelude name is fine
+        // A parameter or local named after a class member is the idiomatic setter/wither
+        // shape; Kotlin does not warn about it either, and the member stays reachable.
+        if (owner.kind == Scope.Kind.CLASS) return
         reporter.warning(
             DiagCode.SHADOWED_DECLARATION,
             "'${symbol.name}' zastira vnejsi deklaraci z ${outer.span.startLine}:${outer.span.startCol}",
@@ -163,10 +244,40 @@ class Resolver(private val reporter: DiagnosticReporter) {
                 null
             } else {
                 val args = node.typeArgs.mapNotNull { typeFor(it, scope) }
-                if (args.size != node.typeArgs.size) null
-                else symbol.type.copy(nullable = node.nullable, typeArgs = args)
+                when {
+                    args.size != node.typeArgs.size -> null
+                    // Only a written-out argument list is checked; a bare `Halda` stays legal
+                    // and is left to kotlinc, so this can never reject valid source.
+                    node.typeArgs.isNotEmpty() && node.typeArgs.size != symbol.typeArity -> {
+                        reportTypeArity(node, symbol)
+                        // Recover with the bare type: one bad annotation should not cascade
+                        // into a second, contradictory error further down the pipeline.
+                        symbol.type.copy(nullable = node.nullable)
+                    }
+                    else -> symbol.type.copy(nullable = node.nullable, typeArgs = args)
+                }
             }
         }
+    }
+
+    private fun reportTypeArity(node: TypeNode.NamedType, symbol: Symbol.TypeName) {
+        reporter.error(
+            DiagCode.TYPE_ARITY_MISMATCH,
+            "'${node.name}' bere ${typeArgWord(symbol.typeArity)}, dal si ${node.typeArgs.size}",
+            node.span,
+            highlight = "spatny pocet typovych argumentu",
+            fix = if (symbol.typeArity == 0) {
+                "'${node.name}' zadne typove argumenty nebere — zrus '<...>'"
+            } else {
+                "'${node.name}' bere ${typeArgWord(symbol.typeArity)} — uprav '<...>'"
+            },
+        )
+    }
+
+    private fun typeArgWord(n: Int): String = when (n) {
+        1 -> "1 typovy argument"
+        2, 3, 4 -> "$n typove argumenty"
+        else -> "$n typovych argumentu"
     }
 
     // ── Binding pass ─────────────────────────────────────────────────────────
@@ -177,6 +288,9 @@ class Resolver(private val reporter: DiagnosticReporter) {
                 // Reuse the scope the declare pass built, so bindings resolve to the same
                 // symbols that [resolution.declarations] / [Symbol.TypeName.members] hold.
                 val classScope = classScopes.getValue(decl)
+                // Constructor-parameter defaults are code too — without this their names never
+                // resolve and an undeclared one survives into the emitted Kotlin.
+                for (param in decl.params) param.defaultValue?.let { bindExpr(it, classScope) }
                 for (member in decl.members) bindDecl(member, classScope)
             }
             is Decl.FunDecl -> bindFunction(decl, scope)
@@ -301,6 +415,8 @@ class Resolver(private val reporter: DiagnosticReporter) {
             resolution.bindings[expr] = symbol
             return
         }
+        // A wildcard import could legitimately supply this name — see [hasWildcardImport].
+        if (hasWildcardImport) return
         val suggestion = table.suggest(expr.name, scope)
         reporter.error(
             DiagCode.UNDECLARED_NAME,

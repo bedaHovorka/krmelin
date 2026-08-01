@@ -87,6 +87,7 @@ milestones can add codes without renumbering.
 | HAV210 | Warning only: an inner declaration shadows an outer one with the same name. |
 | HAV220 | Undeclared name — no symbol with that name is visible here. |
 | HAV221 | Undeclared type name — not a prelude alias and not a declared `tryda`. |
+| HAV222 | Wrong number of type arguments — e.g. `Halda<Cyslo, Dryst>`, where `Halda` takes one. |
 
 ## Type checker (HAV300–HAV399)
 

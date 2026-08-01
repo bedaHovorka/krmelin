@@ -35,6 +35,13 @@ class Scope(
     fun lookup(name: String): Symbol? = lookupLocal(name) ?: parent?.lookup(name)
 
     /**
+     * The nearest scope declaring [name], so a caller can tell *where* a symbol lives.
+     * Shadowing warnings use this: hiding a class member is idiomatic, hiding a local is not.
+     */
+    fun scopeDeclaring(name: String): Scope? =
+        if (symbols.containsKey(name)) this else parent?.scopeDeclaring(name)
+
+    /**
      * The outer symbol a new declaration named [name] would hide, for shadowing warnings
      * (HAV210). Only ancestors are consulted — a same-scope collision is a duplicate, not
      * shadowing.
