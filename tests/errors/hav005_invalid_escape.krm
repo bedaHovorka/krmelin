@@ -1,0 +1,4 @@
+// HAV005 — vadna escape sekvence
+robota rynek() {
+    toz s = "spatne \q escapovano"
+}

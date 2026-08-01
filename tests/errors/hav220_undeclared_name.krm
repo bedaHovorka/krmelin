@@ -1,0 +1,4 @@
+// HAV220 — pouziti nedeklarovaneho jmena
+robota rynek() {
+    zarvat(neexistujici)
+}

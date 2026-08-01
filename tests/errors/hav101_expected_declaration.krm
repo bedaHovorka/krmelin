@@ -1,0 +1,4 @@
+// HAV101 — necekana deklarace — chybi klic. slovo
+robota rynek() {}
+
+boinak cokoliv

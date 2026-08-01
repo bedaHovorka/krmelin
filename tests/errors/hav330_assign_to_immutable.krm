@@ -1,0 +1,5 @@
+// HAV330 — prirazeni do nepromenenne hodnoty
+robota rynek() {
+    toz x = 1
+    x = 2
+}

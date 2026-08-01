@@ -1,0 +1,4 @@
+// HAV003 — nedokonceny vyraz v sablone
+robota rynek() {
+    toz s = "hodnota: ${1 + 2
+}

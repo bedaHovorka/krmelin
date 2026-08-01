@@ -1,0 +1,6 @@
+// HAV342 — spatny navratovy typ
+robota secti(a: Cyslo, b: Cyslo): Cyslo {
+    davaj "tohle neni cislo"
+}
+
+robota rynek() {}

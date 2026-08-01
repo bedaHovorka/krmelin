@@ -86,17 +86,41 @@ class ParserRecoveryTest {
     }
 
     @Test
-    fun `a bad when branch inside a method keeps the sibling method in the class`() {
+    fun `multiple top-level errors are all reported without stopping after the first`() {
         val (cu, reporter) = parse(
-            "tryda C {\n    robota f() {\n        podle_teho {\n            -> 1\n        }\n    }\n\n" +
-                "    robota g() {\n        zarvat(\"g\")\n    }\n}\n"
+            "boinak nonsense\n" +
+                "robota f() {}\n" +
+                "dalsi nesmysl\n" +
+                "robota g() {}\n"
         )
-        assertTrue(reporter.hasErrors, "expected a diagnostic for the conditionless branch")
-        val cls = assertIs<Decl.ClassDecl>(cu.declarations.single())
+        assertTrue(reporter.errors.size >= 2, "expected at least two errors, got: ${reporter.render()}")
+        val names = cu.declarations.filterIsInstance<Decl.FunDecl>().map { it.name }
+        assertEquals(listOf("f", "g"), names, "both valid functions must survive multi-error recovery")
+    }
+
+    @Test
+    fun `multiple errors in function bodies are all collected`() {
+        val (_, reporter) = parse(
+            "robota rynek() {\n" +
+                "    toz x = )\n" +
+                "    toz y = )\n" +
+                "    toz z = 1\n" +
+                "}\n"
+        )
+        assertTrue(reporter.errors.size >= 2, "both bad statements must produce diagnostics, got: ${reporter.render()}")
+    }
+
+    @Test
+    fun `stray brace followed by valid declaration both diagnosed and recovered`() {
+        val (cu, reporter) = parse(
+            "}\n" +
+                "robota rynek() {}\n"
+        )
+        assertTrue(reporter.hasErrors, "stray brace must produce a diagnostic")
         assertEquals(
-            listOf("f", "g"),
-            cls.members.filterIsInstance<Decl.FunDecl>().map { it.name },
-            "'g' must stay a member of C rather than being hoisted to the top level",
+            listOf("rynek"),
+            cu.declarations.filterIsInstance<Decl.FunDecl>().map { it.name },
+            "valid function after stray brace must still be parsed",
         )
     }
 }

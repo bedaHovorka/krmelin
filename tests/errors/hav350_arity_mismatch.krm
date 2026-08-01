@@ -1,0 +1,8 @@
+// HAV350 — spatny pocet argumentu
+robota pozdrav(jmeno: Dryst) {
+    zarvat("Nazdar, $jmeno!")
+}
+
+robota rynek() {
+    pozdrav("Frantisek", "navic")
+}

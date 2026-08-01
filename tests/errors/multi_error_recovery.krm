@@ -1,0 +1,10 @@
+// Viacero chyb najednou — testuje zachytavanie chyb bez zastavenia
+// Ocakavane: HAV220, HAV221, HAV331
+robota rynek() {
+    zarvat(neexistujici)
+    toz x: NeznanyTyp = 1
+    mozej i = 5
+    kaj (i) {
+        zarvat("nechce")
+    }
+}

@@ -1,0 +1,6 @@
+// HAV221 — neznamy typ
+robota f(x: Neznamy): Taky_neznamy {
+    davaj x
+}
+
+robota rynek() {}
