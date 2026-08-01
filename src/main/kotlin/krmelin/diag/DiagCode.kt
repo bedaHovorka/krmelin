@@ -41,4 +41,23 @@ enum class DiagCode(val code: String) {
     BAD_LAMBDA_PARAM("HAV107"),
     TEMPLATE_LEFTOVER("HAV108"),
     EXPECTED_EXPRESSION("HAV109"),
+
+    // ── Resolver ─────────────────────────────────────────────────────────────
+    /** Catch-all for resolver failures that have no dedicated code. */
+    RESOLVER_INTERNAL("HAV200"),
+    DUPLICATE_DECLARATION("HAV201"),
+    /** Warning only: an inner declaration hides an outer one. */
+    SHADOWED_DECLARATION("HAV210"),
+    UNDECLARED_NAME("HAV220"),
+    UNKNOWN_TYPE_NAME("HAV221"),
+
+    // ── Type checker ─────────────────────────────────────────────────────────
+    TYPE_MISMATCH("HAV300"),
+    /** Assignment to an immutable `toz` binding. */
+    ASSIGN_TO_IMMUTABLE("HAV330"),
+    CONDITION_NOT_BUL("HAV331"),
+    /** `davaj <expr>` inside a function with no declared return type. */
+    UNEXPECTED_RETURN_VALUE("HAV341"),
+    RETURN_TYPE_MISMATCH("HAV342"),
+    ARITY_MISMATCH("HAV350"),
 }
