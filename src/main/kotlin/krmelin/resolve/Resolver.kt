@@ -27,6 +27,12 @@ class Resolver(private val reporter: DiagnosticReporter) {
     /** One resolution per type node — the declare and bind passes revisit the same nodes. */
     private val typeCache = java.util.IdentityHashMap<TypeNode, KType?>()
 
+    /** Each class's scope, built in the declare pass and reused by the bind pass so class-member
+     *  bindings resolve to the same symbols that [resolution.declarations] / [Symbol.TypeName.members]
+     *  hold — otherwise an inferred member type written via `declarations` would be invisible to
+     *  inference reading `bindings`. */
+    private val classScopes = java.util.IdentityHashMap<Decl.ClassDecl, Scope>()
+
     fun resolve(unit: Decl.CompilationUnit): Resolution {
         val fileScope = table.newFileScope()
         resolution = Resolution(fileScope)
@@ -50,6 +56,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
 
     private fun declareClass(decl: Decl.ClassDecl, scope: Scope) {
         val classScope = Scope(parent = scope, kind = Scope.Kind.CLASS)
+        classScopes[decl] = classScope
         val members = linkedMapOf<String, Symbol>()
         fun addMember(symbol: Symbol) {
             val declNode = when (symbol) {
@@ -118,7 +125,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
             DiagCode.DUPLICATE_DECLARATION,
             "'${symbol.name}' je tu deklarovany podruhy",
             symbol.span,
-            highlight = "tohle jme no tu u z je",
+            highlight = "tohle jmeno tu uz je",
             fix = existing?.let { "prejmenuj jedno z nich; prvni deklarace: ${it.span.startLine}:${it.span.startCol}" },
             flourish = "dva krale na jednym trunu nesedza",
         )
@@ -131,7 +138,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
             DiagCode.SHADOWED_DECLARATION,
             "'${symbol.name}' zastira vnejsi deklaraci z ${outer.span.startLine}:${outer.span.startCol}",
             symbol.span,
-            highlight = "tohle jme no uz vnejsi deklarace ma",
+            highlight = "tohle jmeno uz vnejsi deklarace ma",
             fix = "prejmenuj vnitrni '${symbol.name}', at je jasne, co je co",
         )
     }
@@ -167,13 +174,9 @@ class Resolver(private val reporter: DiagnosticReporter) {
     private fun bindDecl(decl: Decl, scope: Scope) {
         when (decl) {
             is Decl.ClassDecl -> {
-                val classScope = Scope(parent = scope, kind = Scope.Kind.CLASS)
-                for (param in decl.params) classScope.declare(paramSymbol(param, scope))
-                for (member in decl.members) when (member) {
-                    is Decl.FunDecl -> classScope.declare(functionSymbol(member, classScope))
-                    is Decl.PropertyDecl -> classScope.declare(variableSymbol(member, classScope))
-                    else -> Unit
-                }
+                // Reuse the scope the declare pass built, so bindings resolve to the same
+                // symbols that [resolution.declarations] / [Symbol.TypeName.members] hold.
+                val classScope = classScopes.getValue(decl)
                 for (member in decl.members) bindDecl(member, classScope)
             }
             is Decl.FunDecl -> bindFunction(decl, scope)
@@ -301,9 +304,9 @@ class Resolver(private val reporter: DiagnosticReporter) {
         val suggestion = table.suggest(expr.name, scope)
         reporter.error(
             DiagCode.UNDECLARED_NAME,
-            "jme no '${expr.name}' neni deklarovane",
+            "jmeno '${expr.name}' neni deklarovane",
             expr.span,
-            highlight = "takove jme no tu neni",
+            highlight = "takove jmeno tu neni",
             fix = if (suggestion != null) {
                 "nemyslel si '$suggestion'? velka pismena hraju roli"
             } else {

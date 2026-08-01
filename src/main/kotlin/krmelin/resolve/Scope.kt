@@ -28,6 +28,10 @@ class Scope(
 
     fun lookupLocal(name: String): Symbol? = symbols[name]
 
+    /** Names declared directly in this scope, excluding inherited ones; lets a caller walk
+     *  the parent chain once and touch each name exactly once. */
+    fun localNames(): Set<String> = symbols.keys
+
     fun lookup(name: String): Symbol? = lookupLocal(name) ?: parent?.lookup(name)
 
     /**

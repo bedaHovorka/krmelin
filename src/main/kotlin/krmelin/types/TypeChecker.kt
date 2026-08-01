@@ -207,7 +207,7 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
 
     private fun inferUncached(expr: Expr): KType = when (expr) {
         is Expr.IntLit -> Prelude.CYSLO
-        is Expr.FloatLit -> Prelude.CYslO_DESETINNE
+        is Expr.FloatLit -> Prelude.CYSLO_DESETINNE
         is Expr.StringLit -> Prelude.DRYST
         is Expr.StringTemplate -> {
             expr.parts.forEach { if (it is TemplatePart.Interpolation) infer(it.expr) }
@@ -396,7 +396,7 @@ class TypeChecker(private val reporter: DiagnosticReporter, private val resoluti
     private fun typeNameFor(type: KType): Symbol.TypeName? {
         var scope: krmelin.resolve.Scope? = resolution.fileScope
         while (scope != null) {
-            for (name in scope.visibleNames()) {
+            for (name in scope.localNames()) {
                 val symbol = scope.lookupLocal(name)
                 if (symbol is Symbol.TypeName && symbol.type.kotlinName == type.kotlinName) {
                     return symbol

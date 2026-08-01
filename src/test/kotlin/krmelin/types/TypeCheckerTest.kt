@@ -216,4 +216,42 @@ class TypeCheckerTest {
         val good = TestSupport.analyze("toz s: Dryst? = chuj")
         assertFalse(good.reporter.hasErrors, good.reporter.render())
     }
+
+    // ── class member identity ───────────────────────────────────────────────
+
+    @Test
+    fun `an inferred class property type is checked when returned from a method`() {
+        // `obsah` has no declared type, so the checker infers Cyslo from `polumer * polumer`
+        // and writes it on the property's symbol. Returning it from a Dryst-typed method must
+        // report HAV342 — which only works if the binding the method body resolves is the SAME
+        // symbol the checker wrote the inferred type on (the bind pass must reuse the declare
+        // pass's class scope, not re-create fresh member symbols).
+        val source = """
+            tryda Kruh(polumer: Cyslo) {
+                toz obsah = polumer * polumer
+                robota dejObsah() : Dryst {
+                    davaj obsah
+                }
+            }
+        """.trimIndent()
+        val analyzed = TestSupport.analyze(source)
+        TestSupport.expectDiag(
+            analyzed.reporter, DiagCode.RETURN_TYPE_MISMATCH,
+            fragment = "davaj' vraci Cyslo",
+        )
+    }
+
+    @Test
+    fun `an inferred class property returned from a matching method is clean`() {
+        val source = """
+            tryda Kruh(polumer: Cyslo) {
+                toz obsah = polumer * polumer
+                robota dejObsah() : Cyslo {
+                    davaj obsah
+                }
+            }
+        """.trimIndent()
+        val analyzed = TestSupport.analyze(source)
+        assertFalse(analyzed.reporter.hasErrors, analyzed.reporter.render())
+    }
 }

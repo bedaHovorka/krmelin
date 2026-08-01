@@ -19,7 +19,7 @@ object Prelude {
 
     val DRYST = primitive("Dryst", "String")
     val CYSLO = primitive("Cyslo", "Int")
-    val CYslO_DESETINNE = primitive("CysloDesetinne", "Double")
+    val CYSLO_DESETINNE = primitive("CysloDesetinne", "Double")
     val BUL = primitive("Bul", "Boolean")
     val CHACHAR = primitive("Chachar", "Char")
     val HALDA = KType("Halda", "List", kind = KType.Kind.DECLARED)
@@ -57,7 +57,7 @@ object Prelude {
     val scope: Scope = Scope(kind = Scope.Kind.PRELUDE).apply {
         declare(alias("Dryst", DRYST, 0, primitiveMembers() + ("dylka" to prop("dylka", CYSLO))))
         declare(alias("Cyslo", CYSLO, 0, primitiveMembers()))
-        declare(alias("CysloDesetinne", CYslO_DESETINNE, 0, primitiveMembers()))
+        declare(alias("CysloDesetinne", CYSLO_DESETINNE, 0, primitiveMembers()))
         declare(alias("Bul", BUL, 0, primitiveMembers()))
         declare(alias("Chachar", CHACHAR, 0, primitiveMembers()))
         declare(

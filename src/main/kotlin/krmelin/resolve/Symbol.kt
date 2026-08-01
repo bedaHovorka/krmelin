@@ -41,7 +41,7 @@ sealed class Symbol {
         val params: List<ParamSig>,
         /** Declared return type; `null` in source means the unit type [KType.NIC]. */
         val returnType: KType?,
-        /** Constructor params of the owning class when this is a member function, else null. */
+        /** The AST function declaration, or null for prelude symbols. */
         val decl: Decl.FunDecl? = null,
     ) : Symbol()
 
