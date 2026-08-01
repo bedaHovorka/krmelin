@@ -35,3 +35,18 @@ jobs:
         run: |
           jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
           java -jar "$jar_file" --help
+
+      - name: Doc-test — compile all examples/*.krm snippets
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
+          failed=0
+          for f in examples/*.krm; do
+            echo "Compiling $f ..."
+            out_kt=$(mktemp /tmp/krmelin-doctest-XXXXXX.kt)
+            if ! java -jar "$jar_file" compile "$f" -o "$out_kt" 2>&1; then
+              echo "FAIL: $f did not compile"
+              failed=1
+            fi
+            rm -f "$out_kt"
+          done
+          exit $failed

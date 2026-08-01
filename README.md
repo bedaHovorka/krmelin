@@ -13,9 +13,17 @@ The joke lives in the surface syntax. The compiler is real.
 
 ---
 
-## Quick example
+## Quick start
 
+Requires JDK 21. Build from source:
+
+```sh
+./gradlew build
 ```
+
+Write your first Krmelin program, `hello.krm`:
+
+```krmelin
 sachta demo
 
 robota rynek() {
@@ -23,7 +31,24 @@ robota rynek() {
 }
 ```
 
-compiles to:
+Run it:
+
+```sh
+java -jar build/libs/krmelin-*.jar run hello.krm
+```
+
+Output:
+
+```
+Toz vitaj, Krmelin!
+```
+
+Inspect the generated Kotlin:
+
+```sh
+java -jar build/libs/krmelin-*.jar compile hello.krm -o hello.kt
+cat hello.kt
+```
 
 ```kotlin
 package demo
@@ -32,6 +57,54 @@ fun main() {
     println("Toz vitaj, Krmelin!")
 }
 ```
+
+---
+
+## More examples
+
+**KobzoleBuzz** — the FizzBuzz of Ostrava (*kobzola* = potato):
+
+```krmelin
+robota rynek() {
+    mozej i = 1
+    rubaj (i <= 15) {
+        podle_teho {
+            i % 15 == 0 -> zarvat("KobzoleBuzz")
+            i % 3 == 0  -> zarvat("Kobzole")
+            i % 5 == 0  -> zarvat("Buzz")
+            boinak      -> zarvat(i.naDryst())
+        }
+        i = i + 1
+    }
+}
+```
+
+**Data class + null safety:**
+
+```krmelin
+zapisnik tryda Havir(toz mejno: Dryst, mozej odrubano: Cyslo)
+
+robota delka(s: Dryst?) : Cyslo {
+    davaj s?.dylka ?: 0
+}
+```
+
+**Exceptions — the pub brawl:**
+
+```krmelin
+robota rynek() {
+    pultik {
+        dostanes Flakanec("bum!")
+    } bitka (f: Flakanec) {
+        zarvat("dostal sem: ${f.zprava}")
+    } fajront {
+        zarvat("fajront, chlapi")
+    }
+}
+```
+
+See [`docs/examples.md`](docs/examples.md) for a full set of Ostrava-themed programs,
+and [`examples/`](examples/) for runnable source files.
 
 ---
 
@@ -55,35 +128,72 @@ fun main() {
 | `catch`    | `bitka`       | "a brawl"                        |
 | `finally`  | `fajront`     | "end of shift"                   |
 
-See [docs/keywords.md](docs/keywords.md) for the full table.
+See [`docs/keywords.md`](docs/keywords.md) for the full table with dialect sources.
 
 ---
 
-## Building from source
+## Testing with PorubaUnit
 
-Requires JDK 21.
+PorubaUnit is Krmelin's built-in test framework — named after Poruba, a large
+district of Ostrava. Annotate tests with `@Sichta` ("a shift"):
 
-```sh
-./gradlew build
+```krmelin
+@Sichta robota secteni_funguje() {
+    musi_byt(1 + 1, 2)
+    je_fajne(2 > 1)
+    je_chuj(chuj)
+}
 ```
 
-The shadow jar lands at `build/libs/krmelin-<version>.jar`.
-
-## Running
+Run all tests under `tests/`:
 
 ```sh
-# via the launcher script (after build):
-cli/krmelin --help
-
-# or directly (the shadow jar, not the plain/-slim.jar one):
-java -jar build/libs/krmelin-<version>.jar --help
+java -jar build/libs/krmelin-*.jar test
 ```
 
-## Running tests
+Output:
+
+```
+PorubaUnit — šichta začíná
+  ✓ secteni_funguje          (0 ms)
+
+Fajront: 1 prošlo, 0 spadlo, 0 chyb — za 3 ms
+```
+
+See [`docs/porubaunit.md`](docs/porubaunit.md) for the full assertion API.
+
+---
+
+## Running compiler tests
 
 ```sh
 ./gradlew test
 ```
+
+---
+
+## CLI reference
+
+```
+krmelin compile <file>      Transpile .krm → .kt  (-o, --jar, --emit-only)
+krmelin run <file>          Compile and execute    (--args, --keep)
+krmelin test [path]         Run @Sichta tests      (--filter, --verbose)
+krmelin fmt <file|dir>      Format source          (--check, --write)
+krmelin repl                Interactive REPL       (--load)
+```
+
+Global flags: `--version`, `--help`, `--no-color`, `-v/--verbose`.
+
+---
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/language-spec.md`](docs/language-spec.md) | Full language reference, EBNF, diagnostic codes |
+| [`docs/keywords.md`](docs/keywords.md) | All keywords with dialect sources and register notes |
+| [`docs/examples.md`](docs/examples.md) | Real-life Ostrava-themed example programs |
+| [`docs/porubaunit.md`](docs/porubaunit.md) | PorubaUnit test framework reference |
 
 ---
 
@@ -92,12 +202,12 @@ java -jar build/libs/krmelin-<version>.jar --help
 | Milestone | Description                         | Status      |
 |-----------|-------------------------------------|-------------|
 | M1        | Scaffold + backend decision         | ✅ done     |
-| M2        | Lexer and parser                    | 🚧 planned  |
-| M3        | Core language semantics             | 🚧 planned  |
-| M4        | Translation and runtime             | 🚧 planned  |
-| M5        | PorubaUnit test framework           | 🚧 planned  |
-| M6        | Flakanci examples                   | 🚧 planned  |
-| M7        | Docs and samples                    | 🚧 planned  |
+| M2        | Lexer and parser                    | ✅ done     |
+| M3        | Core language semantics             | ✅ done     |
+| M4        | Translation and runtime             | ✅ done     |
+| M5        | PorubaUnit test framework           | ✅ done     |
+| M6        | Flakanci examples                   | ✅ done     |
+| M7        | Docs and samples                    | ✅ done     |
 | M8        | Tests and error-message polish      | 🚧 planned  |
 | M9        | Release                             | 🚧 planned  |
 

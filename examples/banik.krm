@@ -1,0 +1,26 @@
+// examples/banik.krm — FC Baník Ostrava: jedynak singleton.
+// FC Baník Ostrava: founded 1922, 4× Czechoslovak champions.
+// Run: krmelin run examples/banik.krm
+
+sachta fotbal
+
+jedynak FCBanik {
+    toz nazev: Dryst = "FC Banik Ostrava"
+    toz zalozen: Cyslo = 1922
+    mozej tituly: Cyslo = 4
+
+    robota predstav() {
+        zarvat("${nazev}, zalozen ${zalozen}, ${tituly}x mistri Ceskoslovenska.")
+    }
+
+    robota pridejTitul() {
+        tituly = tituly + 1
+        zarvat("Dalsi titul! Celkem: ${tituly}.")
+    }
+}
+
+robota rynek() {
+    FCBanik.predstav()
+    FCBanik.pridejTitul()
+    zarvat("Heja Banik!")
+}
