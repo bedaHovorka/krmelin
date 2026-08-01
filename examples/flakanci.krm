@@ -1,0 +1,53 @@
+// examples/flakanci.krm — Pub brawl demo for the Flakanci hierarchy.
+// Plan.md §7: nested pultik, multiple bitka subtype dispatch, rethrow,
+// fajront on every path, rozdava on function signatures, nullable types.
+// Output is deterministic — serves as an e2e golden test.
+
+robota hazej(kolo: Cyslo) rozdava Flakanec {
+    kaj (kolo == 1) {
+        dostanes DelenoNulou("deleni nulou v kole 1")
+    } kajtez (kolo == 2) {
+        dostanes MimoBarak("mimo barak v kole 2")
+    } kajtez (kolo == 3) {
+        dostanes ZlyDryst("zly dryst v kole 3")
+    } kajtez (kolo == 4) {
+        dostanes ChujovyFlakanec("chujovy flakanec v kole 4")
+    }
+}
+
+robota jednoKolo(kolo: Cyslo) {
+    pultik {
+        hazej(kolo)
+    } bitka (f: DelenoNulou) {
+        zarvat("Kolo ${kolo}: zluknul sem DelenoNulou — ${f.zprava}")
+    } bitka (f: MimoBarak) {
+        zarvat("Kolo ${kolo}: zluknul sem MimoBarak — ${f.zprava}")
+        dostanes f
+    } bitka (f: Flakanec) {
+        zarvat("Kolo ${kolo}: obecny Flakanec — ${f.zprava}")
+    } fajront {
+        zarvat("Kolo ${kolo}: fajront")
+    }
+}
+
+robota zpracujZpravu(zprava: Dryst?) {
+    toz text = zprava ?: "zadna zprava"
+    zarvat("Zprava: ${text}")
+}
+
+robota rynek() {
+    pultik {
+        jednoKolo(1)
+        jednoKolo(2)
+    } bitka (f: MimoBarak) {
+        zarvat("Vnejsi bitka: chytil sem ${f.zprava}")
+    } fajront {
+        zarvat("Vnejsi fajront")
+    }
+    jednoKolo(3)
+    jednoKolo(4)
+    jednoKolo(5)
+    zpracujZpravu(chuj)
+    zpracujZpravu("Toz vitaj z Flakanci!")
+    zarvat("Konec sichty")
+}
