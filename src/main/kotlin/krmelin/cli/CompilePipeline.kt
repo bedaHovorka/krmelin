@@ -63,4 +63,16 @@ internal object CompilePipeline {
     /** Renders one backend-phase diagnostic on its own (header only, no source lines). */
     fun renderStandalone(diag: Diagnostic): String =
         DiagnosticReporter().also { it.report(diag) }.render()
+
+    /**
+     * The `java` binary used to launch compiled programs: the one running this process, so a
+     * program runs on the same JVM as its compiler even when no `java` is on PATH. Falls back
+     * to a bare `java` if `java.home` is unset or does not hold the expected layout.
+     */
+    fun javaExecutable(): String {
+        val home = System.getProperty("java.home") ?: return "java"
+        val name = if (System.getProperty("os.name").orEmpty().startsWith("Windows")) "java.exe" else "java"
+        val candidate = File(File(home, "bin"), name)
+        return if (candidate.canExecute()) candidate.absolutePath else "java"
+    }
 }

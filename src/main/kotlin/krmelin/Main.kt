@@ -2,6 +2,7 @@ package krmelin
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.parameters.options.versionOption
 import krmelin.cli.CompileCommand
 import krmelin.cli.FmtCommand
 import krmelin.cli.ReplCommand
@@ -15,8 +16,13 @@ class KrmelinCli : CliktCommand(
     override fun run() = Unit
 }
 
-fun main(args: Array<String>) {
+/**
+ * The assembled command tree. Built here rather than inline in [main] so tests can drive
+ * the root command — `--version` and `--help` live on it, not on any subcommand.
+ */
+fun krmelinCli(): CliktCommand =
     KrmelinCli()
+        .versionOption(BuildInfo.VERSION)
         .subcommands(
             CompileCommand(),
             RunCommand(),
@@ -24,5 +30,7 @@ fun main(args: Array<String>) {
             FmtCommand(),
             ReplCommand(),
         )
-        .main(args)
+
+fun main(args: Array<String>) {
+    krmelinCli().main(args)
 }

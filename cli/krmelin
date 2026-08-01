@@ -1,6 +1,42 @@
 #!/usr/bin/env sh
 # Launcher script for Krmelin.
-# After `./gradlew shadowJar`, run: cli/krmelin [args]
+#
+# Usage:
+#   ./gradlew shadowJar     # build the fat jar
+#   cli/krmelin [args]      # run it
+#
+# Set KRMELIN_JAR to point at a specific jar (e.g. one downloaded from a release)
+# instead of the one in build/libs.
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-JAR="$(find "$SCRIPT_DIR/../build/libs" -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')"
-exec java -jar "$JAR" "$@"
+LIBS_DIR="$SCRIPT_DIR/../build/libs"
+
+if [ -n "$KRMELIN_JAR" ]; then
+    JAR="$KRMELIN_JAR"
+    if [ ! -f "$JAR" ]; then
+        echo "krmelin: KRMELIN_JAR points at '$JAR', which is not a file." >&2
+        exit 2
+    fi
+else
+    # Newest first, so a stale jar from a previous version never wins. The slim jar
+    # is the plain (dependency-less) one and is not runnable on its own.
+    JAR="$(ls -t "$LIBS_DIR"/krmelin-*.jar 2>/dev/null | grep -v -- '-slim\.jar$' | head -n 1 || true)"
+    if [ -z "$JAR" ]; then
+        echo "krmelin: no fat jar in $LIBS_DIR — run './gradlew shadowJar' first." >&2
+        exit 2
+    fi
+    count="$(ls -t "$LIBS_DIR"/krmelin-*.jar 2>/dev/null | grep -v -c -- '-slim\.jar$' || true)"
+    if [ "$count" -gt 1 ]; then
+        echo "krmelin: several jars in $LIBS_DIR, using the newest: $(basename "$JAR")" >&2
+    fi
+fi
+
+# Prefer the JDK this environment is configured with; fall back to whatever is on PATH.
+if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA="java"
+fi
+
+exec "$JAVA" -jar "$JAR" "$@"

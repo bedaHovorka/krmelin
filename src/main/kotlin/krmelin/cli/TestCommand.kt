@@ -193,7 +193,7 @@ class TestCommand : CliktCommand(
 
             // Runner argv contract (pinned by TestMainEmitterTest): [glob, "v"].
             val exitCode = ProcessBuilder(
-                "java",
+                CompilePipeline.javaExecutable(),
                 "-cp",
                 classesDir.absolutePath + File.pathSeparator + System.getProperty("java.class.path"),
                 "KrmelinTestMainKt",

@@ -2,6 +2,13 @@
 
 > **Kotlin, po našymu.** A satirical transpiler that speaks Ostrava dialect.
 
+> *Protože běžní Ostraváci nebudou mít na drahou AI, bude muset vzniknout jim
+> blízký jazyk přeložitelný do JVM bytecodu, binárky i JavaScriptu.*
+>
+> — Because ordinary Ostravians won't be able to afford expensive AI, a language
+> close to them will have to come into being — one translatable to JVM bytecode,
+> to a binary, and to JavaScript.
+
 Krmelin is a programming language that looks like Kotlin, but every keyword has
 been replaced with authentic **ostravština** — the short-voweled, penultimate-stress,
 German/Polish-flavoured miners' slang of the Moravian-Silesian region. It is a
@@ -13,13 +20,37 @@ The joke lives in the surface syntax. The compiler is real.
 
 ---
 
-## Quick start
+## Install
 
-Requires JDK 21. Build from source:
+Krmelin needs **JDK 21** and nothing else — the Kotlin compiler is bundled inside the
+jar, so there is no `kotlinc` to install.
+
+Download `krmelin-0.1.0.jar` from the
+[latest release](https://github.com/bedaHovorka/krmelin/releases/latest) and run it:
+
+```sh
+java -jar krmelin-0.1.0.jar run hello.krm
+```
+
+Or build from source:
 
 ```sh
 ./gradlew build
 ```
+
+which produces the same fat jar in `build/libs/`. The `cli/krmelin` launcher finds it for
+you, so the rest of this README uses that:
+
+```sh
+cli/krmelin run hello.krm
+```
+
+(Set `KRMELIN_JAR=/path/to/krmelin-0.1.0.jar` to point the launcher at a downloaded jar
+instead of a locally built one.)
+
+---
+
+## Quick start
 
 Write your first Krmelin program, `hello.krm`:
 
@@ -34,7 +65,7 @@ robota rynek() {
 Run it:
 
 ```sh
-java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" run hello.krm
+cli/krmelin run hello.krm
 ```
 
 Output:
@@ -46,7 +77,7 @@ Toz vitaj, Krmelin!
 Inspect the generated Kotlin:
 
 ```sh
-java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" compile hello.krm -o hello.kt
+cli/krmelin compile hello.krm -o hello.kt
 cat hello.kt
 ```
 
@@ -145,20 +176,32 @@ district of Ostrava. Annotate tests with `@Sichta` ("a shift"):
 }
 ```
 
-Run all tests under `tests/`:
+Point `krmelin test` at a file or a directory of Krmelin sources:
 
 ```sh
-java -jar "$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')" test
+cli/krmelin test examples/porubaunit_demo.krm
 ```
 
 Output:
 
 ```
 PorubaUnit — šichta začíná
-  ✓ secteni_funguje          (0 ms)
+  ✓ FlakanciParty.deleni_nulou_rozdava        (1 ms)
+  ✓ FlakanciParty.zly_dryst_ma_dostat         (0 ms)
+  ✓ FlakanciParty.mimo_barak_ma_dostat        (0 ms)
+  ✓ FlakanciParty.chujovy_flakanec_ma_dostat  (0 ms)
+  ✓ FlakanciParty.flakanec_sobo_zpravu_nese   (0 ms)
+  ✓ dvojka_sedi                               (0 ms)
+  ✓ bulovstina_sedi                           (0 ms)
+  ✓ blizky_cysla_se_sejzou                    (0 ms)
 
-Fajront: 1 prošlo, 0 spadlo, 0 chyb — za 3 ms
+Fajront: 8 prošlo, 0 spadlo, 0 chyb — za 6 ms
 ```
+
+With no path it defaults to `tests/`. In *this* repository that directory holds the
+compiler's own golden and diagnostic corpora — including sources that are deliberately
+uncompilable — so a bare `cli/krmelin test` here exits `2` by design. In your own project,
+`tests/` is the natural place for `@Sichta` files.
 
 See [`docs/porubaunit.md`](docs/porubaunit.md) for the full assertion API.
 
@@ -182,7 +225,8 @@ krmelin fmt <file|dir>      Format source          (--check)
 krmelin repl                Interactive REPL       (--load)
 ```
 
-Global flag: `--help`. (`-v/--verbose` is a `test` option; there is no `--version` yet.)
+Global flags: `--version`, `--help`. (`-v/--verbose` is a `test` option; `--no-color` is
+not implemented yet.)
 
 `fmt` and `repl` ship as stubs in v0.1 and are in active development.
 
@@ -196,6 +240,7 @@ Global flag: `--help`. (`-v/--verbose` is a `test` option; there is no `--versio
 | [`docs/keywords.md`](docs/keywords.md) | All keywords with dialect sources and register notes |
 | [`docs/examples.md`](docs/examples.md) | Real-life Ostrava-themed example programs |
 | [`docs/porubaunit.md`](docs/porubaunit.md) | PorubaUnit test framework reference |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history and known limitations |
 
 ---
 
@@ -210,8 +255,8 @@ Global flag: `--help`. (`-v/--verbose` is a `test` option; there is no `--versio
 | M5        | PorubaUnit test framework           | ✅ done     |
 | M6        | Flakanci examples                   | ✅ done     |
 | M7        | Docs and samples                    | ✅ done     |
-| M8        | Tests and error-message polish      | 🚧 planned  |
-| M9        | Release                             | 🚧 planned  |
+| M8        | Tests and error-message polish      | ✅ done     |
+| M9        | Release                             | ✅ done     |
 
 **Non-goals for v0.1:** custom bytecode VM, coroutines, full generics inference,
 operator overloading, IDE tooling (LSP/debugger), backward compatibility with
