@@ -1,0 +1,4 @@
+// HAV334 — lambda s parametrama nema kontext
+robota rynek() {
+    toz f = { x -> x }
+}

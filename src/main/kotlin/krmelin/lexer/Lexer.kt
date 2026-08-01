@@ -159,7 +159,8 @@ class Lexer(
             val value = try {
                 text.toDouble()
             } catch (_: NumberFormatException) {
-                reportError("vadne desetinne cyslo '$text'", code = DiagCode.BAD_NUMBER)
+                reportError("vadne desetinne cyslo '$text'", code = DiagCode.BAD_NUMBER,
+                    fix = "zapis platne desetinne cyslo, napr. '1.5' abo '3.14'")
                 Double.NaN
             }
             addToken(TokenType.FLOAT_LITERAL, value)

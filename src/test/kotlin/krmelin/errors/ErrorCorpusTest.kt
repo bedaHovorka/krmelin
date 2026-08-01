@@ -2,7 +2,6 @@ package krmelin.errors
 
 import krmelin.diag.DiagCode
 import krmelin.diag.DiagnosticReporter
-import krmelin.diag.Severity
 import krmelin.lexer.Lexer
 import krmelin.parser.Parser
 import krmelin.resolve.Resolver
@@ -53,6 +52,7 @@ class ErrorCorpusTest {
                 DiagCode.entries.find { it.code == line }
                     ?: fail("unknown code '$line' in ${diagFile.name}")
             }
+        assertTrue(expected.isNotEmpty(), "empty .diag for ${input.name} — list at least one HAV code")
 
         val reporter = DiagnosticReporter()
         val source = input.readText()
@@ -73,12 +73,14 @@ class ErrorCorpusTest {
             reporter.all.isNotEmpty(),
             "expected at least one diagnostic for ${input.name} but got none",
         )
-        // Every reported diagnostic must use the Ostravština severity label (never English)
+        // Every reported diagnostic must carry a dialect severity label, not an English one.
+        // The labels are hardcoded Ostravština words, so this regex is a guard against an
+        // accidental English label slipping in — it checks "lowercase ASCII", not dialect.
         for (diag in reporter.all) {
             assertTrue(
                 diag.severity.label.matches(Regex("^[a-z]+$")),
-                "severity label '${diag.severity.label}' must be lowercase ASCII (Ostravština), " +
-                    "got: ${diag.severity} in ${input.name}",
+                "severity label '${diag.severity.label}' must be lowercase ASCII " +
+                    "(guard against accidental English labels), got: ${diag.severity} in ${input.name}",
             )
         }
     }

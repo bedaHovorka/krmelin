@@ -1,0 +1,5 @@
+// HAV231 — sichta s parametrama se neda spustit
+@Sichta
+robota test_sichta(x: Cyslo) {}
+
+robota rynek() {}

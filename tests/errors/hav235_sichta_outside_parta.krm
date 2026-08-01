@@ -1,0 +1,7 @@
+// HAV235 — sichta v tryde bez @Parta se nikdy nespusti
+tryda C {
+    @Sichta
+    robota test_neco() {}
+}
+
+robota rynek() {}

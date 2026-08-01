@@ -1,0 +1,5 @@
+// HAV210 — vnitrni jmeno zastira vnejsi deklaraci
+toz x = 1
+robota rynek() {
+    toz x = 2
+}

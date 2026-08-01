@@ -1,0 +1,4 @@
+// HAV222 — spatny pocet typovych argumentu
+robota rynek() {
+    toz x: Cyslo<Dryst> = 1
+}

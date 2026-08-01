@@ -1,0 +1,4 @@
+// HAV107 — spatne jmeno parametra lambdy
+robota rynek() {
+    toz f = { a, 1 -> a }
+}

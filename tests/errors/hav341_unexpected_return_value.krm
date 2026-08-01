@@ -1,0 +1,6 @@
+// HAV341 — robota nic nevraci, ale davaj ma hodnotu
+robota f() {
+    davaj 1
+}
+
+robota rynek() {}

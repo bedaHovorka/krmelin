@@ -1,0 +1,8 @@
+// HAV234 — parta se sichtami musi byt zalozit bez argumentu
+@Parta
+tryda Party(x: Cyslo) {
+    @Sichta
+    robota test_funguje() {}
+}
+
+robota rynek() {}
