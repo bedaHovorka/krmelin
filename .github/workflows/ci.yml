@@ -38,6 +38,7 @@ jobs:
             echo "Expected exactly one shadow jar in build/libs, found:"; printf '%s\n' "$jar_file"; exit 1
           fi
           java -jar "$jar_file" --help
+          java -jar "$jar_file" --version
 
       - name: Doc-test — compile all examples/*.krm snippets
         run: |

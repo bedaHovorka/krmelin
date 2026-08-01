@@ -103,7 +103,7 @@ class RunCommand : CliktCommand(
             val programArgs = args?.split(Regex("\\s+"))?.filter { it.isNotBlank() } ?: emptyList()
             val exitCode = ProcessBuilder(
                 listOf(
-                    "java",
+                    CompilePipeline.javaExecutable(),
                     "-cp",
                     classesDir.absolutePath + File.pathSeparator + System.getProperty("java.class.path"),
                     mainClass,
