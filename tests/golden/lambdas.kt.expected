@@ -1,0 +1,5 @@
+fun main() {
+    val jmeno = "Ostrava"
+    val pozdrav = { "Nazdar z $jmeno!" }
+    println(pozdrav())
+}

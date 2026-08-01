@@ -1,0 +1,13 @@
+sachta demo.golden
+
+toz pozdrav: Dryst = "Nazdar, Ostrava!"
+
+robota secti(a: Cyslo, b: Cyslo): Cyslo {
+    davaj a + b
+}
+
+robota rynek() {
+    zarvat(pozdrav)
+    toz vysledek = secti(3, 4)
+    zarvat(vysledek.naDryst())
+}

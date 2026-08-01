@@ -26,7 +26,8 @@ class TestE2eTest {
     }
 
     private fun runCli(vararg argv: String): Process {
-        return ProcessBuilder(listOf("java", "-jar", jar.absolutePath) + argv)
+        val java = "${System.getProperty("java.home")}/bin/java"
+        return ProcessBuilder(listOf(java, "-jar", jar.absolutePath) + argv)
             .redirectErrorStream(true)
             .start()
     }

@@ -1,0 +1,13 @@
+package demo.golden
+
+val pozdrav: String = "Nazdar, Ostrava!"
+
+fun secti(a: Int, b: Int): Int {
+    return a + b
+}
+
+fun main() {
+    println(pozdrav)
+    val vysledek = secti(3, 4)
+    println(vysledek.toString())
+}

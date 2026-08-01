@@ -1,0 +1,4 @@
+// HAV108 — v sablone textu je cosik navyc
+robota rynek() {
+    toz s = "hodnota: ${1 2}"
+}

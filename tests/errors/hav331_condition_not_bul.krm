@@ -1,0 +1,7 @@
+// HAV331 — podminka neni Bul
+robota rynek() {
+    mozej i = 5
+    kaj (i) {
+        zarvat("jo")
+    }
+}

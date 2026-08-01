@@ -1,0 +1,4 @@
+// HAV106 — predpis nema parametry konstruktoru
+predpis Tvar(x: Cyslo) {
+    robota f()
+}

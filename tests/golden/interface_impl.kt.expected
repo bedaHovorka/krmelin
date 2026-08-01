@@ -1,0 +1,23 @@
+interface Tvar {
+    fun plocha(): Double
+    fun popis(): String
+}
+
+class Kruh(val polomer: Double) {
+    fun plocha(): Double = polomer * polomer * 3.14
+    fun popis(): String = "kruh s polomerem $polomer"
+}
+
+class Obdelnik(val sirka: Double, val vyska: Double) {
+    fun plocha(): Double = sirka * vyska
+    fun popis(): String = "obdelnik ${sirka}x$vyska"
+}
+
+fun main() {
+    val k = Kruh(5.0)
+    val o = Obdelnik(4.0, 3.0)
+    println(k.popis())
+    println(o.popis())
+    println(k.plocha().toString())
+    println(o.plocha().toString())
+}

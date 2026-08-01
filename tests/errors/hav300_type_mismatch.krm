@@ -1,0 +1,4 @@
+// HAV300 — nesouladnost typu pri prirazeni
+robota rynek() {
+    toz x: Cyslo = "tohle neni cislo"
+}

@@ -62,6 +62,7 @@ class ExprParser(private val parser: Parser) {
                 "tu ma byt vyraz",
                 code = DiagCode.EXPECTED_EXPRESSION,
                 note = "zadny vyraz tu nemoze zacinat",
+                fix = "dej sem vyraz — cislo, jmeno, volani abo '(...)'",
             )
         parser.advance()
         var left = prefix(token)
@@ -124,7 +125,11 @@ class ExprParser(private val parser: Parser) {
             TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE,
             TokenType.PLUS, TokenType.MINUS,
             TokenType.STAR, TokenType.SLASH, TokenType.PERCENT -> Expr.BinaryExpr(operator.type, left, right, span)
-            else -> throw parser.error(operator, "divny operator '${operator.text}'")
+            else -> throw parser.error(
+                operator,
+                "divny operator '${operator.text}'",
+                fix = "tyn operator tu nepatri — nahlas to vyvojary",
+            )
         }
     }
 
@@ -156,7 +161,11 @@ class ExprParser(private val parser: Parser) {
                 )
             }
         }
-        else -> throw parser.error(operator, "divny postfixovy operator '${operator.text}'")
+        else -> throw parser.error(
+            operator,
+            "divny postfixovy operator '${operator.text}'",
+            fix = "tyn postfixovy operator tu nepatri — nahlas to vyvojary",
+        )
     }
 
     private fun parseArguments(): List<Expr> {
@@ -235,7 +244,7 @@ class ExprParser(private val parser: Parser) {
         val close = if (parser.check(TokenType.RBRACE)) {
             parser.advance()
         } else {
-            parser.error(parser.peek(), "za telem lambdy ma byt '}'")
+            parser.error(parser.peek(), "za telem lambdy ma byt '}'", fix = "zavri lambdu '}'")
             parser.previous()
         }
         val block = Stmt.Block(bodyStmts, parser.span(start, close))

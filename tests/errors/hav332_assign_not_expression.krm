@@ -1,0 +1,4 @@
+// HAV332 — prirazeni neni vyraz
+robota rynek() {
+    zarvat(a = 5)
+}

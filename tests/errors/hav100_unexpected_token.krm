@@ -1,0 +1,8 @@
+// HAV100 — necekany token — chybi zaviraci zavorka za argumenty
+robota f(x: Cyslo): Cyslo {
+    davaj x
+}
+
+robota rynek() {
+    f(1 2)
+}

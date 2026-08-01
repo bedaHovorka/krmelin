@@ -1,0 +1,23 @@
+predpis Tvar {
+    robota plocha(): CysloDesetinne
+    robota popis(): Dryst
+}
+
+tryda Kruh(toz polomer: CysloDesetinne) {
+    robota plocha(): CysloDesetinne = polomer * polomer * 3.14
+    robota popis(): Dryst = "kruh s polomerem $polomer"
+}
+
+tryda Obdelnik(toz sirka: CysloDesetinne, toz vyska: CysloDesetinne) {
+    robota plocha(): CysloDesetinne = sirka * vyska
+    robota popis(): Dryst = "obdelnik ${sirka}x${vyska}"
+}
+
+robota rynek() {
+    toz k = Kruh(5.0)
+    toz o = Obdelnik(4.0, 3.0)
+    zarvat(k.popis())
+    zarvat(o.popis())
+    zarvat(k.plocha().naDryst())
+    zarvat(o.plocha().naDryst())
+}

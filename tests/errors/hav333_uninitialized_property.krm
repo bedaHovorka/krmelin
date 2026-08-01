@@ -1,0 +1,4 @@
+// HAV333 — vlastnost bez pocatecni hodnoty mimo funkci
+toz naZacatku: Cyslo
+
+robota rynek() {}

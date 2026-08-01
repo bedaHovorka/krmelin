@@ -1,0 +1,5 @@
+robota rynek() {
+    toz jmeno = "Ostrava"
+    toz pozdrav = { "Nazdar z $jmeno!" }
+    zarvat(pozdrav())
+}
