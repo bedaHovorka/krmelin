@@ -14,6 +14,10 @@
         ma_dostat { dostanes MimoBarak("venku") }
     }
 
+    @Sichta robota chujovy_flakanec_ma_dostat() {
+        ma_dostat { dostanes ChujovyFlakanec("nic tu neni") }
+    }
+
     @Sichta robota flakanec_sobo_zpravu_nese() {
         pultik {
             dostanes ChujovyFlakanec("nic tu neni")
