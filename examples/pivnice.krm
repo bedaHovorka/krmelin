@@ -1,0 +1,33 @@
+// examples/pivnice.krm — predpis (interface) example: an Ostrava pub.
+// Every Ostrava neighbourhood has its pivnice (pub). This models the essentials.
+// Run: krmelin run examples/pivnice.krm
+
+sachta pohostinstvi
+
+predpis Pivnice {
+    robota natocPivo(druh: Dryst) : Dryst
+    robota zaplatit(castka: Cyslo) : Bul
+}
+
+tryda UKrameriho {
+    robota natocPivo(druh: Dryst) : Dryst {
+        davaj "Jedno ${druh}, prosim!"
+    }
+
+    robota zaplatit(castka: Cyslo) : Bul {
+        zarvat("Platim ${castka} Kc.")
+        davaj fajne
+    }
+}
+
+robota rynek() {
+    toz hospoda = UKrameriho()
+    toz objednavka = hospoda.natocPivo("Radegast")
+    zarvat(objednavka)
+    toz zaplaceno = hospoda.zaplatit(35)
+    kaj (zaplaceno) {
+        zarvat("Zaplaceno. Na zdravi!")
+    } boinak {
+        zarvat("Problem s platbou.")
+    }
+}

@@ -34,4 +34,70 @@ jobs:
       - name: Verify --help lists subcommands
         run: |
           jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
+          if [ -z "$jar_file" ] || [ "$(printf '%s\n' "$jar_file" | wc -l)" -ne 1 ]; then
+            echo "Expected exactly one shadow jar in build/libs, found:"; printf '%s\n' "$jar_file"; exit 1
+          fi
           java -jar "$jar_file" --help
+
+      - name: Doc-test — compile all examples/*.krm snippets
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
+          if [ -z "$jar_file" ] || [ "$(printf '%s\n' "$jar_file" | wc -l)" -ne 1 ]; then
+            echo "Expected exactly one shadow jar in build/libs, found:"; printf '%s\n' "$jar_file"; exit 1
+          fi
+          failed=0
+          for f in examples/*.krm; do
+            echo "Compiling $f ..."
+            # Compile into a throwaway dir: `krmelin compile` writes runtime sources
+            # (Flakanci.kt / PorubaUnit.kt) next to the output, so a bare temp file
+            # would orphan them in /tmp. A temp dir collects everything for cleanup.
+            tmp_dir=$(mktemp -d /tmp/krmelin-doctest-XXXXXX)
+            if ! java -jar "$jar_file" compile "$f" -o "$tmp_dir/out.kt" 2>&1; then
+              echo "FAIL: $f did not compile"
+              failed=1
+            fi
+            rm -rf "$tmp_dir"
+          done
+          exit $failed
+
+      - name: Doc-test — compile fenced krmelin blocks in README and docs/examples
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -name 'krmelin-*.jar' ! -name '*-slim.jar')
+          if [ -z "$jar_file" ] || [ "$(printf '%s\n' "$jar_file" | wc -l)" -ne 1 ]; then
+            echo "Expected exactly one shadow jar in build/libs, found:"; printf '%s\n' "$jar_file"; exit 1
+          fi
+          # Extract every ```krmelin fenced block from the runnable docs and compile
+          # each standalone. (docs/language-spec.md is intentionally excluded: its
+          # snippets are illustrative fragments — single statements, bare expressions —
+          # not whole programs.)
+          python3 - "$jar_file" <<'PY'
+          import os, re, sys, subprocess, tempfile, shutil, pathlib
+          jar = sys.argv[1]
+          fence = re.compile(r"```krmelin\n(.*?)```", re.DOTALL)
+          files = ["README.md", "docs/examples.md"]
+          fails = 0
+          checked = 0
+          for fn in files:
+              p = pathlib.Path(fn)
+              if not p.exists():
+                  continue
+              for m in fence.finditer(p.read_text()):
+                  body = m.group(1)
+                  if not body.strip():
+                      continue
+                  checked += 1
+                  d = tempfile.mkdtemp(prefix="krmblk-")
+                  src = os.path.join(d, "ex.krm")
+                  out = os.path.join(d, "out.kt")
+                  open(src, "w").write(body)
+                  r = subprocess.run(["java", "-jar", jar, "compile", src, "-o", out],
+                                     capture_output=True, text=True)
+                  if r.returncode != 0:
+                      fails += 1
+                      tail = (r.stderr or r.stdout).strip().splitlines()
+                      first = body.strip().splitlines()[0]
+                      print(f"FAIL {fn}: {first!r} -> {tail[-1] if tail else '?'}")
+                  shutil.rmtree(d)
+          print(f"Doc blocks checked: {checked}, failures: {fails}")
+          sys.exit(1 if fails else 0)
+          PY

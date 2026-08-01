@@ -1,0 +1,16 @@
+// examples/fizzbuzz.krm — KobzoleBuzz (the classic FizzBuzz in ostravština).
+// Kobzola = potato, a staple of Ostrava mining families.
+// Run: krmelin run examples/fizzbuzz.krm
+
+robota rynek() {
+    mozej i = 1
+    rubaj (i <= 15) {
+        podle_teho {
+            i % 15 == 0 -> zarvat("KobzoleBuzz")
+            i % 3 == 0  -> zarvat("Kobzole")
+            i % 5 == 0  -> zarvat("Buzz")
+            boinak      -> zarvat(i.naDryst())
+        }
+        i = i + 1
+    }
+}

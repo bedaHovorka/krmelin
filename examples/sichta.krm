@@ -1,0 +1,26 @@
+// examples/sichta.krm — Šichta na dole: a miner's shift counter.
+// Real-life Ostrava: haviři (miners) work šichty (shifts).
+// After 5 shifts, fajront — the weekend is earned.
+// Run: krmelin run examples/sichta.krm
+
+sachta doly
+
+zapisnik tryda Havir(toz mejno: Dryst, mozej sichty: Cyslo)
+
+robota zhodnotSichtu(havir: Havir) {
+    havir.sichty = havir.sichty + 1
+    zarvat("${havir.mejno} ma ted ${havir.sichty} sichtu.")
+    kaj (havir.sichty >= 5) {
+        zarvat("${havir.mejno}: fajront, chlapi — vikend zaslouzeny!")
+    } boinak {
+        toz zbyva = 5 - havir.sichty
+        zarvat("${havir.mejno}: furt jeste ${zbyva} do fajrontu.")
+    }
+}
+
+robota rynek() {
+    mozej franta = Havir("Franta Ostravak", 3)
+    zhodnotSichtu(franta)
+    zhodnotSichtu(franta)
+    zhodnotSichtu(franta)
+}
