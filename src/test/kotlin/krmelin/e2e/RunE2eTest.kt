@@ -60,4 +60,32 @@ class RunE2eTest {
             output.trim().lines(),
         )
     }
+
+    @Test
+    fun `krmelin run examples flakanci prints the deterministic pub brawl output`() {
+        val proc = runCli("run", "examples/flakanci.krm")
+        val output = proc.inputStream.bufferedReader().readText()
+        assertEquals(0, proc.waitFor(), output)
+        // Staged pub brawl: each Flakanci subtype provoked in turn, rethrow via outer pultik,
+        // fajront on every path, nullable zpracujZpravu at the end.
+        assertEquals(
+            listOf(
+                "Kolo 1: zluknul sem DelenoNulou \u2014 deleni nulou v kole 1",
+                "Kolo 1: fajront",
+                "Kolo 2: zluknul sem MimoBarak \u2014 mimo barak v kole 2",
+                "Kolo 2: fajront",
+                "Vnejsi bitka: chytil sem mimo barak v kole 2",
+                "Vnejsi fajront",
+                "Kolo 3: obecny Flakanec \u2014 zly dryst v kole 3",
+                "Kolo 3: fajront",
+                "Kolo 4: obecny Flakanec \u2014 chujovy flakanec v kole 4",
+                "Kolo 4: fajront",
+                "Kolo 5: fajront",
+                "Zprava: zadna zprava",
+                "Zprava: Toz vitaj z Flakanci!",
+                "Konec sichty",
+            ),
+            output.trim().lines(),
+        )
+    }
 }

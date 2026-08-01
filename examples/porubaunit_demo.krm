@@ -6,6 +6,18 @@
         ma_dostat { dostanes DelenoNulou("bum!") }
     }
 
+    @Sichta robota zly_dryst_ma_dostat() {
+        ma_dostat { dostanes ZlyDryst("spatny dryst") }
+    }
+
+    @Sichta robota mimo_barak_ma_dostat() {
+        ma_dostat { dostanes MimoBarak("venku") }
+    }
+
+    @Sichta robota chujovy_flakanec_ma_dostat() {
+        ma_dostat { dostanes ChujovyFlakanec("nic tu neni") }
+    }
+
     @Sichta robota flakanec_sobo_zpravu_nese() {
         pultik {
             dostanes ChujovyFlakanec("nic tu neni")
