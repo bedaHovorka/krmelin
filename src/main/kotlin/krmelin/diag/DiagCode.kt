@@ -51,8 +51,22 @@ enum class DiagCode(val code: String) {
     SHADOWED_DECLARATION("HAV210"),
     UNDECLARED_NAME("HAV220"),
     UNKNOWN_TYPE_NAME("HAV221"),
-    /** A generic type name was written with the wrong number of type arguments. */
+    /**
+     * A generic type name was written with the wrong number of type arguments.
+     */
     TYPE_ARITY_MISMATCH("HAV222"),
+    /** PorubaUnit: `@Sichta` on anything but a `robota`. */
+    SICHTA_NOT_ON_ROBOTA("HAV230"),
+    /** PorubaUnit: a `@Sichta` `robota` has parameters or no body — only parameterless ones run. */
+    SICHTA_WITH_PARAMS("HAV231"),
+    /** PorubaUnit: `rynek` is the program entry point and never runs as a `@Sichta`. */
+    SICHTA_ON_RYNEK("HAV232"),
+    /** PorubaUnit: `@Parta` on anything but a plain `tryda` / `zapisnik tryda`. */
+    PARTA_NOT_ON_TRYDA("HAV233"),
+    /** PorubaUnit: a `@Parta` class holding member tests must be constructible with no arguments. */
+    PARTA_CTOR_PARAM_REQUIRED("HAV234"),
+    /** Warning only: a `@Sichta` member of a class that is not `@Parta` is never discovered. */
+    SICHTA_OUTSIDE_PARTA("HAV235"),
 
     // ── Type checker ─────────────────────────────────────────────────────────
     TYPE_MISMATCH("HAV300"),
@@ -91,4 +105,6 @@ enum class DiagCode(val code: String) {
      * source was not written there and the emitted `.kt` will not compile on its own.
      */
     RUNTIME_NOT_WRITTEN("HAV411"),
+    /** PorubaUnit: two test files map to the same Kotlin facade class (`KrmelinTestMain` included). */
+    DUPLICATE_TEST_FACADE("HAV412"),
 }

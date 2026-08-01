@@ -89,6 +89,12 @@ milestones can add codes without renumbering.
 | HAV220 | Undeclared name — no symbol with that name is visible here. |
 | HAV221 | Undeclared type name — not a prelude alias and not a declared `tryda`. |
 | HAV222 | Wrong number of type arguments — e.g. `Halda<Cyslo, Dryst>`, where `Halda` takes one. |
+| HAV230 | `@Sichta` on something that is not a `robota`. |
+| HAV231 | A `@Sichta` `robota` has parameters or no body — only parameterless ones can run as tests. |
+| HAV232 | `@Sichta` on `rynek` — the program entry point is never a test. |
+| HAV233 | `@Parta` on something that is not a plain `tryda` / `zapisnik tryda`. |
+| HAV234 | A `@Parta` class holding member tests must be constructible with no arguments. |
+| HAV235 | Warning only: a `@Sichta` member of a class that is not `@Parta` is never discovered. |
 
 ## Type checker (HAV300–HAV399)
 
@@ -112,6 +118,7 @@ milestones can add codes without renumbering.
 | HAV401 | No entry point — `krmelin run` needs a top-level, parameterless `rynek`. |
 | HAV410 | The embedded Kotlin compiler rejected the emitted `.kt`; its own messages follow. |
 | HAV411 | A different `Flakanci.kt` already exists beside the output; the runtime was not written. |
+| HAV412 | Two test files map to the same Kotlin facade class (a `KrmelinTestMain` clash counts too). |
 
 ## Notes on wording
 

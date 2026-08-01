@@ -16,6 +16,7 @@ import java.io.PrintStream
 object KotlinBackend {
 
     private const val FLAKANCI_RESOURCE = "runtime/Flakanci.kt"
+    private const val PORUBAUNIT_RESOURCE = "runtime/PorubaUnit.kt"
 
     /**
      * Compiles [sources] into .class files under [outDir]. Returns the compiler exit
@@ -48,6 +49,23 @@ object KotlinBackend {
         javaClass.classLoader.getResourceAsStream(FLAKANCI_RESOURCE)
             ?.use { it.readBytes().decodeToString() }
             ?: error("$FLAKANCI_RESOURCE missing from the jar — compiler packaging is broken")
+
+    /**
+     * Extracts the PorubaUnit runtime source from the jar into [destDir] so it can be
+     * compiled alongside the emitted `.kt` (plus [extractFlakanci] — PorubaUnit classifies
+     * [krmelin.runtime.Flakanec] throwables, so the two always travel together).
+     */
+    fun extractPorubaUnit(destDir: File): File {
+        val target = File(destDir, "PorubaUnit.kt")
+        target.writeText(porubaUnitSource())
+        return target
+    }
+
+    /** The PorubaUnit runtime source as text, for callers that place it themselves. */
+    fun porubaUnitSource(): String =
+        javaClass.classLoader.getResourceAsStream(PORUBAUNIT_RESOURCE)
+            ?.use { it.readBytes().decodeToString() }
+            ?: error("$PORUBAUNIT_RESOURCE missing from the jar — compiler packaging is broken")
 
     /**
      * The jar holding the Kotlin standard library, for bundling into a `--jar` build.

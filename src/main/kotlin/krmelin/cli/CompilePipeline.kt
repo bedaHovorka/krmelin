@@ -25,6 +25,7 @@ internal object CompilePipeline {
             val unit: Decl.CompilationUnit,
             val kt: String,
             val usesFlakanci: Boolean,
+            val usesPorubaUnit: Boolean,
             val reporter: DiagnosticReporter,
         ) : Outcome
 
@@ -53,7 +54,10 @@ internal object CompilePipeline {
         if (reporter.hasErrors) return Outcome.Diagnostics(reporter.render(), reporter)
 
         val lowered = Lowering(resolution).lower(unit)
-        return Outcome.Success(unit, KotlinEmitter(resolution).emit(lowered), lowered.usesFlakanci, reporter)
+        return Outcome.Success(
+            unit, KotlinEmitter(resolution).emit(lowered),
+            lowered.usesFlakanci, lowered.usesPorubaUnit, reporter,
+        )
     }
 
     /** Renders one backend-phase diagnostic on its own (header only, no source lines). */

@@ -43,6 +43,10 @@ class ExprParser(private val parser: Parser) {
         TokenType.PLUS, TokenType.MINUS -> InfixInfo(7, rightAssoc = false)
         TokenType.STAR, TokenType.SLASH, TokenType.PERCENT -> InfixInfo(8, rightAssoc = false)
         TokenType.LPAREN, TokenType.DOT, TokenType.SAFE_DOT -> InfixInfo(10, rightAssoc = false, postfix = true)
+        // Trailing lambda (Plan.md §6): `ma_dostat { ... }`. A NEWLINE before the '{' ends
+        // the postfix run before this is ever considered, so a `{ }` starting the next
+        // statement never attaches to the expression above.
+        TokenType.LBRACE -> InfixInfo(10, rightAssoc = false, postfix = true)
         else -> null
     }
 
@@ -137,6 +141,20 @@ class ExprParser(private val parser: Parser) {
             val args = parseArguments()
             val close = parser.expect(TokenType.RPAREN, "za argumentama ma byt ')'")
             Expr.CallExpr(left, args, parser.span(left, close))
+        }
+        TokenType.LBRACE -> {
+            val lambda = parseLambda(operator)
+            when (left) {
+                is Expr.CallExpr ->
+                    Expr.CallExpr(left.callee, left.args + lambda, parser.span(left, lambda))
+                is Expr.NameExpr, is Expr.MemberExpr ->
+                    Expr.CallExpr(left, listOf(lambda), parser.span(left, lambda))
+                else -> throw parser.error(
+                    operator,
+                    "za tymhle vyrazem lambda neslusi",
+                    note = "blok v '{}' slusi enem za volanim, napr. 'robota(x) { ... }'",
+                )
+            }
         }
         else -> throw parser.error(operator, "divny postfixovy operator '${operator.text}'")
     }

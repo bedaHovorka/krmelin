@@ -6,6 +6,7 @@ import krmelin.ast.FunBody
 import krmelin.ast.Stmt
 import krmelin.ast.TypeNode
 import krmelin.lower.Lowering
+import krmelin.resolve.Prelude
 import krmelin.resolve.Resolution
 import krmelin.resolve.Symbol
 
@@ -72,7 +73,7 @@ class KotlinEmitter(private val resolution: Resolution) {
         }
 
         val importLines = buildList {
-            if (lowered.usesFlakanci) add(KotlinPrelude.RUNTIME_IMPORT_LINE)
+            if (lowered.usesFlakanci || lowered.usesPorubaUnit) add(KotlinPrelude.RUNTIME_IMPORT_LINE)
             unit.imports.forEach {
                 val base = it.name.joinToString(".")
                 add(if (it.wildcard) "import $base.*" else "import $base")
@@ -136,8 +137,8 @@ class KotlinEmitter(private val resolution: Resolution) {
     }
 
     private fun emitFun(decl: Decl.FunDecl, topLevel: Boolean) {
-        // @Sichta/@Parta are intentionally dropped in M4 — PorubaUnit (M5) consumes
-        // them before emission; the generated Kotlin carries no test annotations.
+        // @Sichta/@Parta never surface in emitted Kotlin — TestDiscovery consumes them
+        // for the registry before emission; the generated .kt carries plain functions only.
         if (decl.throwsTypes.isNotEmpty()) {
             line("@Throws(${decl.throwsTypes.joinToString(", ") { "${renderType(it)}::class" }})")
         }
@@ -296,7 +297,7 @@ class KotlinEmitter(private val resolution: Resolution) {
         is Expr.NameExpr -> emitName(expr)
         is Expr.BinaryExpr -> "${emitExpr(expr.left)} ${BINARY_OPS[expr.op]} ${emitExpr(expr.right)}"
         is Expr.UnaryExpr -> "${UNARY_OPS[expr.op]}${emitParenthized(expr.operand)}"
-        is Expr.CallExpr -> "${emitExpr(expr.callee)}(${expr.args.joinToString(", ") { emitExpr(it) }})"
+        is Expr.CallExpr -> emitCall(expr)
         is Expr.MemberExpr -> "${emitExpr(expr.receiver)}.${KotlinPrelude.escapeIdent(expr.name)}"
         is Expr.SafeMemberExpr -> "${emitExpr(expr.receiver)}?.${KotlinPrelude.escapeIdent(expr.name)}"
         is Expr.ElvisExpr -> "${emitExpr(expr.left)} ?: ${emitExpr(expr.right)}"
@@ -320,6 +321,28 @@ class KotlinEmitter(private val resolution: Resolution) {
             }
         }
         return KotlinPrelude.escapeIdent(expr.name)
+    }
+
+    /**
+     * A call. PorubaUnit assertion calls — callee bound to a prelude assertion symbol
+     * (`decl == null`, so a user robota that shares the name never qualifies) — gain a
+     * trailing `odkud = "file:line:col"` argument carrying the `.krm` call-site span,
+     * which is what lets failure output quote real test source (Plan.md §6).
+     */
+    private fun emitCall(expr: Expr.CallExpr): String {
+        val args = expr.args.joinToString(", ") { emitExpr(it) }
+        val callee = expr.callee
+        if (callee is Expr.NameExpr) {
+            val symbol = resolution.bindings[callee]
+            if (symbol is Symbol.Function && symbol.decl == null &&
+                callee.name in Prelude.ASSERTION_NAMES
+            ) {
+                val span = expr.span
+                val odkud = "odkud = \"${escape("${span.file}:${span.startLine}:${span.startCol}")}\""
+                return "${emitExpr(callee)}(" + (if (args.isEmpty()) odkud else "$args, $odkud") + ")"
+            }
+        }
+        return "${emitExpr(expr.callee)}($args)"
     }
 
     /** Unary operators parenthesize composite operands so `-a * b` cannot misbind. */

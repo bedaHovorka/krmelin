@@ -1,0 +1,4 @@
+@Sichta robota vsecko_sedi() {
+    musi_byt(2, 2)
+    je_fajne(3 > 2)
+}

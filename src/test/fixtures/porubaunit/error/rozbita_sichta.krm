@@ -1,0 +1,3 @@
+@Sichta robota deleni_nulou_bitka() {
+    dostanes DelenoNulou("dela sa nula")
+}

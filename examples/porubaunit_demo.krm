@@ -1,0 +1,32 @@
+// PorubaUnit ukazka — parta so sichtami za jednu sichtu.
+// Spusti: krmelin test examples/porubaunit_demo.krm
+
+@Parta tryda FlakanciParty {
+    @Sichta robota deleni_nulou_rozdava() {
+        ma_dostat { dostanes DelenoNulou("bum!") }
+    }
+
+    @Sichta robota flakanec_sobo_zpravu_nese() {
+        pultik {
+            dostanes ChujovyFlakanec("nic tu neni")
+        } bitka (f: ChujovyFlakanec) {
+            musi_byt(f.zprava, "nic tu neni")
+        }
+    }
+}
+
+@Sichta robota dvojka_sedi() {
+    musi_byt(2 * 2, 4)
+    nesmi_byt(2, 3)
+}
+
+@Sichta robota bulovstina_sedi() {
+    je_fajne(2 > 1)
+    je_nyt(2 < 1)
+    je_chuj(chuj)
+    neni_chuj("neco")
+}
+
+@Sichta robota blizky_cysla_se_sejzou() {
+    blizko(3.14, 3.15, 0.05)
+}

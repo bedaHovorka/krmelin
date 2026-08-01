@@ -1,0 +1,14 @@
+@Sichta robota dvojka_zostava_dvojkou() {
+    musi_byt(2, 2)
+    nesmi_byt(2, 3)
+}
+
+@Parta tryda MikrofonParty {
+    @Sichta robota blizky_cysla_se_sejzou() {
+        blizko(1.0, 1.05, 0.1)
+    }
+
+    @Sichta robota deleni_nulou_rozdava() {
+        ma_dostat { dostanes DelenoNulou("bum") }
+    }
+}

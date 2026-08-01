@@ -1,0 +1,15 @@
+import krmelin.runtime.*
+
+fun dvojka_zostava_dvojkou() {
+    musi_byt(2, 2, odkud = "tests/golden/porubaunit.krm:2:5")
+    nesmi_byt(2, 3, odkud = "tests/golden/porubaunit.krm:3:5")
+}
+
+class MikrofonParty() {
+    fun blizky_cysla_se_sejzou() {
+        blizko(1.0, 1.05, 0.1, odkud = "tests/golden/porubaunit.krm:8:9")
+    }
+    fun deleni_nulou_rozdava() {
+        ma_dostat({ throw DelenoNulou("bum") }, odkud = "tests/golden/porubaunit.krm:12:9")
+    }
+}

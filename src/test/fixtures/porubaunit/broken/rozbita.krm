@@ -1,0 +1,3 @@
+@Sichta robota neskompiluje_se() {
+    pravit(cizi_promenna)
+}
