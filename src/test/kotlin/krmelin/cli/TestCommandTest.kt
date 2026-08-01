@@ -71,6 +71,17 @@ class TestCommandTest {
     }
 
     @Test
+    fun `a root-package file named KrmelinTestMain clashes with the generated registry (HAV412)`() {
+        val dir = tempDir()
+        krm(dir, "KrmelinTestMain.krm", onePassingTest)
+
+        val result = TestCommand().test(dir.absolutePath)
+        assertEquals(2, result.statusCode, result.stderr)
+        assertTrue("HAV412" in result.stderr, result.stderr)
+        assertTrue("KrmelinTestMain" in result.stderr, result.stderr)
+    }
+
+    @Test
     fun `a single passing test file exits 0`() {
         val dir = tempDir()
         val src = krm(dir, "sichty.krm", onePassingTest)

@@ -49,6 +49,15 @@ class TrailingLambdaTest {
     }
 
     @Test
+    fun `braces after a safe member call take them as a trailing lambda`() {
+        val stmt = parseExprStmt("x?.f { dostanes Flakanec(\"bum\") }")
+        val call = assertIs<Expr.CallExpr>(stmt.expr)
+        assertIs<Expr.SafeMemberExpr>(call.callee)
+        assertEquals(1, call.args.size)
+        assertIs<Expr.LambdaExpr>(call.args[0])
+    }
+
+    @Test
     fun `a brace block on the next line does NOT attach to the call above`() {
         val reporter = DiagnosticReporter()
         val source = "robota rynek() {\n  f(x)\n  { }\n}"

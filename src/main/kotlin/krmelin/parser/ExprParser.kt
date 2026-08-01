@@ -147,7 +147,7 @@ class ExprParser(private val parser: Parser) {
             when (left) {
                 is Expr.CallExpr ->
                     Expr.CallExpr(left.callee, left.args + lambda, parser.span(left, lambda))
-                is Expr.NameExpr, is Expr.MemberExpr ->
+                is Expr.NameExpr, is Expr.MemberExpr, is Expr.SafeMemberExpr ->
                     Expr.CallExpr(left, listOf(lambda), parser.span(left, lambda))
                 else -> throw parser.error(
                     operator,

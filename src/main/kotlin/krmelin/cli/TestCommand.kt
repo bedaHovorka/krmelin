@@ -100,13 +100,33 @@ class TestCommand : CliktCommand(
     /**
      * Two files with the same package and the same base name emit the same Kotlin facade
      * class — kotlinc would dump a raw duplicate-class error, so the clash is named here
-     * first. A root-package `KrmelinTestMain` file collides with the generated registry.
+     * first. A root-package `KrmelinTestMain` file collides with the generated registry, so
+     * that clash is named here too rather than surfacing as a generic BACKEND_FAILED.
      */
     private fun checkFacadeClashes(files: List<File>, successes: Map<File, CompilePipeline.Outcome.Success>) {
+        // The generated registry (gen/KrmelinTestMain.kt, root package) emits this facade.
+        val registryFacade = MainClassName.facadeOf("KrmelinTestMain")
         val seen = mutableMapOf<Pair<String?, String>, File>()
         for (file in files) {
             val outcome = successes[file] ?: continue
-            val key = MainClassName.packageOf(outcome.unit) to MainClassName.facadeOf(file.nameWithoutExtension)
+            val pkg = MainClassName.packageOf(outcome.unit)
+            val facade = MainClassName.facadeOf(file.nameWithoutExtension)
+            if (pkg.isNullOrEmpty() && facade == registryFacade) {
+                echo(
+                    CompilePipeline.renderStandalone(
+                        Diagnostic(
+                            Severity.ERROR,
+                            DiagCode.DUPLICATE_TEST_FACADE,
+                            "subor '${file.path}' by vyrobil '$facade' — takhle se menuje generovany zavedec sicht (KrmelinTestMain)",
+                            SourceSpan.NONE,
+                            fix = "prejmenuj subor, abo mu dej 'sachta', at se nehada s generovanym zavedecem",
+                        ),
+                    ),
+                    err = true,
+                )
+                throw ProgramResult(2)
+            }
+            val key = pkg to facade
             val earlier = seen.putIfAbsent(key, file)
             if (earlier != null) {
                 echo(

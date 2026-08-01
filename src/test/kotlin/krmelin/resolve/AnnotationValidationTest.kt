@@ -39,6 +39,12 @@ class AnnotationValidationTest {
     }
 
     @Test
+    fun `@Sichta member named rynek is clean — only top-level rynek is the entry point`() {
+        val analyzed = TestSupport.analyze("@Parta tryda T { @Sichta robota rynek() { } }")
+        assertTrue(analyzed.reporter.all.isEmpty(), "expected clean front end, got:\n${analyzed.reporter.render()}")
+    }
+
+    @Test
     fun `@Parta on a robota is HAV233`() {
         val analyzed = TestSupport.analyze("@Parta robota f() { }")
         expectDiag(analyzed.reporter, DiagCode.PARTA_NOT_ON_TRYDA, fragment = "@Parta")

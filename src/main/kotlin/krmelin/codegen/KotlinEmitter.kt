@@ -330,18 +330,29 @@ class KotlinEmitter(private val resolution: Resolution) {
      * which is what lets failure output quote real test source (Plan.md §6).
      */
     private fun emitCall(expr: Expr.CallExpr): String {
-        val args = expr.args.joinToString(", ") { emitExpr(it) }
         val callee = expr.callee
         if (callee is Expr.NameExpr) {
             val symbol = resolution.bindings[callee]
             if (symbol is Symbol.Function && symbol.decl == null &&
                 callee.name in Prelude.ASSERTION_NAMES
             ) {
+                // `ma_dostat` is the only assertion whose block (`telo`) is its FIRST parameter,
+                // but trailing-lambda syntax puts the block AFTER any message —
+                // `ma_dostat("msg") { ... }` parses to ["msg", lambda]. Emit the block first so
+                // it lands in `telo`, not `zprava` (Plan §6's "optional trailing message").
+                val ordered = if (callee.name == Prelude.THROWS_ASSERTION) {
+                    val (blocks, rest) = expr.args.partition { it is Expr.LambdaExpr }
+                    blocks + rest
+                } else {
+                    expr.args
+                }
+                val args = ordered.joinToString(", ") { emitExpr(it) }
                 val span = expr.span
                 val odkud = "odkud = \"${escape("${span.file}:${span.startLine}:${span.startCol}")}\""
                 return "${emitExpr(callee)}(" + (if (args.isEmpty()) odkud else "$args, $odkud") + ")"
             }
         }
+        val args = expr.args.joinToString(", ") { emitExpr(it) }
         return "${emitExpr(expr.callee)}($args)"
     }
 

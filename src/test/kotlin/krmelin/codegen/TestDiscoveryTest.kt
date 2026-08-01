@@ -7,8 +7,9 @@ import krmelin.TestSupport
 
 /**
  * Discovery walks a compilation unit for `@Sichta` roboty and renders each as a fully
- * qualified invocation the generated KrmelinTestMain can call — top-level tests go
- * through their file facade, `@Parta` member tests through a fresh class instance.
+ * qualified invocation the generated KrmelinTestMain can call — top-level tests by their
+ * package-qualified *function* name (the `<File>Kt` facade is a bytecode artifact invisible
+ * to Kotlin source in the same module), `@Parta` member tests through a fresh class instance.
  */
 class TestDiscoveryTest {
 

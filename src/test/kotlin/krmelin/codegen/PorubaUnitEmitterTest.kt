@@ -45,6 +45,24 @@ class PorubaUnitEmitterTest {
     }
 
     @Test
+    fun `ma_dostat with a message and a trailing lambda emits the block first`() {
+        val kt = TestSupport.transpile(
+            """
+            robota rynek() {
+                ma_dostat("mel flakanec") { dostanes DelenoNulou("bum") }
+            }
+            """.trimIndent(),
+        )
+        // The block is `telo` (first param); the message is `zprava`. The trailing lambda
+        // parses AFTER the message, so the emitter must move it to the front or kotlinc sees
+        // a String where a `() -> Unit` belongs.
+        assertTrue(
+            "ma_dostat({ throw DelenoNulou(\"bum\") }, \"mel flakanec\", odkud = \"test.krm:2:5\")" in kt,
+            "expected block-first, then message, then odkud in:\n$kt",
+        )
+    }
+
+    @Test
     fun `a user-defined robota with an assertion name is never injected`() {
         val kt = TestSupport.transpile(
             """

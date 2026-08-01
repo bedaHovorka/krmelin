@@ -59,10 +59,10 @@ class Resolver(private val reporter: DiagnosticReporter) {
      * from the test registry.
      */
     private fun validateAnnotations(unit: Decl.CompilationUnit) {
-        for (decl in unit.declarations) validateAnnotations(decl)
+        for (decl in unit.declarations) validateAnnotations(decl, topLevel = true)
     }
 
-    private fun validateAnnotations(decl: Decl) {
+    private fun validateAnnotations(decl: Decl, topLevel: Boolean = false) {
         when (decl) {
             is Decl.PropertyDecl -> {
                 if (decl.annotations.contains("Sichta")) {
@@ -77,7 +77,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
                 if (decl.annotations.contains("Parta")) reportPartaMisplaced(decl.span, "vlastnost")
             }
             is Decl.FunDecl -> {
-                if (decl.isTest) validateSichtaFun(decl)
+                if (decl.isTest) validateSichtaFun(decl, topLevel)
                 if (decl.annotations.contains("Parta")) reportPartaMisplaced(decl.span, "robota")
             }
             is Decl.ClassDecl -> {
@@ -107,7 +107,7 @@ class Resolver(private val reporter: DiagnosticReporter) {
                         )
                     }
                 }
-                for (member in decl.members) validateAnnotations(member)
+                for (member in decl.members) validateAnnotations(member, topLevel = false)
             }
             else -> Unit
         }
@@ -123,8 +123,11 @@ class Resolver(private val reporter: DiagnosticReporter) {
         )
     }
 
-    private fun validateSichtaFun(decl: Decl.FunDecl) {
-        if (decl.name == "rynek") {
+    private fun validateSichtaFun(decl: Decl.FunDecl, topLevel: Boolean) {
+        // `rynek` is the program entry point only as a top-level function; a member named
+        // `rynek` is an ordinary method (Prelude.isEntryPoint is consulted for top-level decls
+        // only), so a `@Parta` member test named `rynek` is fine and must not trip HAV232.
+        if (topLevel && decl.name == "rynek") {
             reporter.error(
                 DiagCode.SICHTA_ON_RYNEK,
                 "rynek je zavedec programu, zadna sichta z neho nebude",

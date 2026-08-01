@@ -85,6 +85,13 @@ object Prelude {
     /** Names of the PorubaUnit assertion roboty — the single source of truth for codegen. */
     val ASSERTION_NAMES: Set<String> = porubaUnitAssertions().mapTo(linkedSetOf()) { it.name }
 
+    /**
+     * `ma_dostat` is the only assertion whose block (`telo`) is its FIRST parameter, so a
+     * trailing-lambda call that also carries a message — `ma_dostat("msg") { ... }` — must
+     * emit the block first to land in `telo`, not in the message slot (`zprava`).
+     */
+    const val THROWS_ASSERTION = "ma_dostat"
+
     val scope: Scope = Scope(kind = Scope.Kind.PRELUDE).apply {
         declare(alias("Dryst", DRYST, 0, primitiveMembers() + ("dylka" to prop("dylka", CYSLO))))
         declare(alias("Cyslo", CYSLO, 0, primitiveMembers()))
